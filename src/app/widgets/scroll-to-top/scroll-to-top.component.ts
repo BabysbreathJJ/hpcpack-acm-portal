@@ -1,4 +1,4 @@
-import { Component, OnInit, Input } from '@angular/core';
+import { Component, OnInit, Input, Output, EventEmitter, ElementRef } from '@angular/core';
 
 @Component({
   selector: 'app-scroll-to-top',
@@ -15,8 +15,7 @@ export class ScrollToTopComponent implements OnInit {
   @Input()
   targetEle: HTMLInputElement;
 
-  ngOnInit() {
-  }
+  ngOnInit() {}
 
   private scrollToTop() {
     if (this.targetEle) {
@@ -26,4 +25,5 @@ export class ScrollToTopComponent implements OnInit {
       window.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
     }
   }
+
 }

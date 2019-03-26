@@ -121,7 +121,7 @@ fdescribe('ApiService', () => {
   let apiService;
 
   beforeEach(() => {
-    apiService = new ApiService(null);
+    apiService = new ApiService(null, null);
   });
 
   it('should get node', () => {

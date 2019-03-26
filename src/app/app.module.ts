@@ -5,26 +5,33 @@ import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { HttpClientInMemoryWebApiModule } from 'angular-in-memory-web-api';
 import { MaterialsModule } from './materials.module';
 import { AppRoutingModule } from './app-routing.module';
+import { AuthGuardService } from './services/auth-guard.service';
 import { AuthService } from './services/auth.service';
 import { LoginGuardService } from './services/login-guard.service';
 import { ApiService } from './services/api.service';
+import { TableSettingsService } from './services/table-settings.service';
 import { UserSettingsService } from './services/user-settings.service';
 import { LocalStorageService } from './services/local-storage.service';
 import { InMemoryDataService } from './services/in-memory-data.service';
 import { AppComponent } from './app.component';
+import { LoginComponent } from './login/login.component';
 import { WidgetsModule } from './widgets/widgets.module';
 import { JobStateService } from './services/job-state/job-state.service';
-import { TableService } from './services/table/table.service';
-import { VirtualScrollService } from './services/virtual-scroll/virtual-scroll.service';
+import { TableDataService } from './services/table-data/table-data.service';
 import { DateFormatterService } from './services/date-formatter/date-formatter.service';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { BasicInterceptor } from './helpers/basic.interceptor';
+import { ErrorInterceptor } from './helpers/error.interceptor';
 import { DiagReportService } from './services/diag-report/diag-report.service';
 import { DragulaModule } from 'ng2-dragula';
+import { MsAdalAngular6Module } from 'microsoft-adal-angular6';
 import { ScrollingModule } from '@angular/cdk/scrolling';
+import { DragDropModule } from '@angular/cdk/drag-drop';
 
 @NgModule({
   declarations: [
-    AppComponent
+    AppComponent,
+    LoginComponent
   ],
   imports: [
     BrowserModule,
@@ -32,23 +39,33 @@ import { ScrollingModule } from '@angular/cdk/scrolling';
     HttpClientModule,
     FormsModule,
     ReactiveFormsModule,
+    DragulaModule.forRoot(),
+    //HttpClientInMemoryWebApiModule.forRoot(
+    //  InMemoryDataService,
+    //  {
+    //    apiBase: env.apiBase,
+    //    passThruUnknownUrl: true
+    //  }
+    //),
     MaterialsModule,
     WidgetsModule,
     AppRoutingModule,
-    DragulaModule.forRoot(),
-    ScrollingModule
+    MsAdalAngular6Module.forRoot({
+      tenant: 'jingjingli.onmicrosoft.com',
+      clientId: '9354e57e-fd86-42c0-bf0e-a485a85d642b',
+      redirectUri: 'http://localhost:4200/#/deployment',
+      endpoints: {
+        'https://management.azure.com/': 'https://management.azure.com/',
+        'https://graph.microsoft.com/': 'https://graph.microsoft.com/'
+      }
+    }),
+    ScrollingModule,
+    DragDropModule
   ],
-  providers: [
-    AuthService,
-    LoginGuardService,
-    ApiService,
-    JobStateService,
-    DateFormatterService,
-    TableService,
-    VirtualScrollService,
-    UserSettingsService,
-    LocalStorageService,
-    DiagReportService
+  providers: [AuthGuardService, AuthService, LoginGuardService, ApiService, JobStateService, DateFormatterService, TableDataService,
+    TableSettingsService, UserSettingsService, LocalStorageService, DiagReportService,
+    { provide: HTTP_INTERCEPTORS, useClass: BasicInterceptor, multi: true },
+    { provide: HTTP_INTERCEPTORS, useClass: ErrorInterceptor, multi: true },
   ],
   bootstrap: [AppComponent]
 })

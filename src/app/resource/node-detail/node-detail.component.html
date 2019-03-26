@@ -2,8 +2,19 @@
   <div class="header-info">
     <div class="node-name">{{nodeInfo?.name}}</div>
     <div class="node-tag" *ngIf="nodeInfo?.health" [ngClass]="nodeInfo.health == 'Error' ? 'error-tag' : 'healthy-tag'">
-      {{nodeInfo.health}} </div>
-    <!-- <div class="node-tag" [ngClass]="nodeInfo.state == 'Online' ? 'online-tag' : 'offline-tag'"> {{nodeInfo.state}} </div> -->
+      {{nodeInfo.health}}
+    </div>
+  </div>
+  <!-- <div class="node-tag" [ngClass]="nodeInfo.state == 'Online' ? 'online-tag' : 'offline-tag'"> {{nodeInfo.state}} </div> -->
+  <div class="header-actions">
+    <div class="area-title" (click)="connect(nodeInfo.name)" *ngIf="!showTerminal">
+      <i class="material-icons title-icon">launch</i>
+      <div>Connect</div>
+    </div>
+    <div class="area-title" (click)="disconnect(nodeInfo.name)" *ngIf="showTerminal">
+      <i class="material-icons title-icon">launch</i>
+      <div>Disconnect</div>
+    </div>
   </div>
 </div>
 <mat-tab-group [dynamicHeight]="true">
@@ -160,13 +171,13 @@
   </mat-tab>
   <mat-tab label="Events">
     <div class="events">
-      <!-- <div class="node-events">
+      <div class="node-events">
         <div class="area-title">
           <i class="material-icons title-icon">event</i>
           <div>NODE EVENTS</div>
         </div>
         <app-event-list [events]="events"></app-event-list>
-      </div> -->
+      </div>
       <div class="azure-events">
         <div class="area-title">
           <i class="material-icons title-icon">cloud_queue</i>
@@ -247,3 +258,6 @@
     </mat-table>
   </mat-tab>
 </mat-tab-group>
+
+<div class="console-area" #terminalContainer [hidden]="!showTerminal">
+</div>

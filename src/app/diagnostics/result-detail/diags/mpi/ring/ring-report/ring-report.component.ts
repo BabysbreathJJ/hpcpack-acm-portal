@@ -1,6 +1,8 @@
 import { Component, OnInit, Input, OnDestroy } from '@angular/core';
+import { MatTableDataSource } from '@angular/material';
 import { ApiService, Loop } from '../../../../../../services/api.service';
-import { TableService } from '../../../../../../services/table/table.service';
+import { TableSettingsService } from '../../../../../../services/table-settings.service';
+import { TableDataService } from '../../../../../../services/table-data/table-data.service';
 import { DiagReportService } from '../../../../../../services/diag-report/diag-report.service';
 
 @Component({
@@ -11,34 +13,32 @@ import { DiagReportService } from '../../../../../../services/diag-report/diag-r
 export class RingReportComponent implements OnInit {
   @Input() result: any;
 
-  private dataSource = [];
+  private dataSource = new MatTableDataSource();
+  private currentData = [];
   private lastId = 0;
-  private pageSize = 300;
+  private pageSize = 120;
   private loadFinished = false;
+  private scrollDirection = 'down';
+
   private jobId: string;
   private interval: number;
   private tasksLoop: Object;
   private jobState: string;
-  public events = [];
-  public nodes = [];
+  private events = [];
+  private nodes = [];
   public aggregationResult: any;
 
-  public loading = false;
-  public empty = true;
-  private endId = -1;
 
-  public componentName = "RingReport";
+  private componentName = "RingReport";
 
-  public customizableColumns = [
-    { name: 'node', displayed: true },
-    { name: 'state', displayed: true },
-    { name: 'remark', displayed: true },
-    { name: 'detail', displayed: true }
+  private customizableColumns = [
+    { name: 'nodes', displayName: 'nodes', displayed: true },
   ];
 
   constructor(
     private api: ApiService,
-    private tableService: TableService,
+    private settings: TableSettingsService,
+    private tableDataService: TableDataService,
     private diagReportService: DiagReportService
   ) {
     this.interval = 5000;
@@ -46,9 +46,8 @@ export class RingReportComponent implements OnInit {
 
   ngOnInit() {
     this.jobId = this.result.id;
-    this.jobState = this.result.state;
-    if (this.jobFinished) {
-      this.getAggregationResult();
+    if (this.result.aggregationResult !== undefined) {
+      this.aggregationResult = this.result.aggregationResult;
     }
     this.tasksLoop = this.getTasksInfo();
   }
@@ -70,21 +69,15 @@ export class RingReportComponent implements OnInit {
       this.getTasksRequest(),
       {
         next: (result) => {
-          this.empty = false;
-          if (this.endId != -1 && result[result.length - 1].id != this.endId) {
-            this.loading = false;
-          }
-          if (result.length < this.pageSize) {
+          this.currentData = result;
+          this.tableDataService.updateData(result, this.dataSource, 'id');
+          if (result.length < this.pageSize && this.scrollDirection == 'down') {
             this.loadFinished = true;
-          }
-          if (result.length > 0) {
-            this.dataSource = this.tableService.updateData(result, this.dataSource, 'id');
           }
           if (this.jobFinished) {
             this.getAggregationResult();
           }
           this.getJobInfo();
-          this.getEvents();
           return this.getTasksRequest();
         }
       },
@@ -94,6 +87,7 @@ export class RingReportComponent implements OnInit {
 
   onUpdateLastIdEvent(data) {
     this.lastId = data.lastId;
+    this.scrollDirection = data.direction;
   }
 
   ngOnDestroy() {
@@ -107,6 +101,9 @@ export class RingReportComponent implements OnInit {
       this.jobState = res.state;
       this.result = res;
       this.nodes = res.targetNodes;
+      if (res.events !== undefined) {
+        this.events = res.events;
+      }
     });
   }
 
@@ -118,12 +115,6 @@ export class RingReportComponent implements OnInit {
       err => {
         this.aggregationResult = this.diagReportService.getErrorMsg(err);
       });
-  }
-
-  getEvents() {
-    this.api.diag.getJobEvents(this.result.id).subscribe(res => {
-      this.events = res;
-    });
   }
 
   getLink(node) {

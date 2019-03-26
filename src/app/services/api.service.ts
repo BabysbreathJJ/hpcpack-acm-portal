@@ -1,13 +1,16 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
+import { of } from 'rxjs/observable/of';
 import { catchError, map, first } from 'rxjs/operators';
 import 'rxjs/add/operator/first';
 import { environment as env } from '../../environments/environment';
 import { Node } from '../models/resource/node';
 import { CommandResult } from '../models/command/command-result';
 import { TestResult } from '../models/test-result';
+import { HeatmapNode } from '../models/resource/heatmap-node';
 import 'rxjs/add/operator/concatMap';
+import { MsAdalAngular6Service } from 'microsoft-adal-angular6';
 import { ListNode } from '../models/resource/node-list';
 import { ListJob } from '../models/diagnostics/list-job';
 import { ClusrunJob } from '../models/command/clusrun-job';
@@ -169,8 +172,7 @@ export class CommandApi extends Resource<CommandResult> {
       commandLine: result.commandLine,
       state: result.state,
       targetNodes: result.targetNodes,
-      maximumRuntimeSeconds: result.maximumRuntimeSeconds,
-      progress: result.progress
+      defaultTaskMaximumRuntimeSeconds: result.defaultTaskMaximumRuntimeSeconds
     } as CommandResult;
   }
 
@@ -182,7 +184,6 @@ export class CommandApi extends Resource<CommandResult> {
         state: item.state,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
-        targetNodes: item.targetNodes,
         progress: item.progress
       } as ClusrunJob
     });
@@ -211,23 +212,13 @@ export class CommandApi extends Resource<CommandResult> {
 
   cancel(jobId) {
     let url = `${this.url}/${jobId}`;
-    return this.http.patch(url, { request: 'cancel' }, { observe: 'body', responseType: 'text' })
+    return this.http.patch<any>(url, { request: 'cancel' })
       .pipe(this.errorHandler);
   }
 
-  normalizeClusrunTask(tasks) {
-    return tasks.map((e: any) => ({
-      name: e.node,
-      state: e.state,
-      id: e.id,
-    }));
-  }
-
-  getTasksByPage(jobId, lastId, count) {
-    let url = `${this.url}/${jobId}/tasks?lastid=${lastId}&count=${count}`;
-    return this.httpGet(url, null, [
-      map(e => this.normalizeClusrunTask(e))
-    ]);
+  getTasks(jobId) {
+    let url = `${this.url}/${jobId}/tasks`;
+    return this.httpGet(url);
   }
 
   getTaskResult(jobId, taskId) {
@@ -285,7 +276,7 @@ export class HeatmapApi extends Resource<any> {
     return `${this.baseUrl}/metrics`;
   }
 
-  protected normalize(result: any): void {
+  protected normalizeCpu(result: any) {
     result.results = result.values.map(e => {
       let cores = [];
       for (let core in e.data) {
@@ -303,11 +294,27 @@ export class HeatmapApi extends Resource<any> {
     return this.httpGet(url);
   }
 
-  getMetricInfo(category: string, pageSize: number): Observable<any> {
-    let url = `${this.url}/${category}?count=${pageSize}`;
+  protected normalizeMem(result: any) {
+
+  }
+
+  protected normalizeDisk(result: any) {
+
+  }
+
+  get(category: string): Observable<any> {
+    let url = this.url + '/' + category;
     return this.httpGet(url, null, [
-      map(e => this.normalize(e)),
+      map(e => {
+        switch (e['category']) {
+          case 'cpu': return this.normalizeCpu(e);
+          case 'memory': return this.normalizeMem(e);
+          case 'disk': return this.normalizeDisk(e);
+          default: return e;
+        }
+      }),
     ]);
+    // return this.httpGet(url);
   }
 
   getMockData(category: string): Observable<any> {
@@ -413,7 +420,6 @@ export class DiagApi extends Resource<any> {
         progress: item.progress,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
-        targetNodes: item.targetNodes,
         diagnosticTest: {
           name: item.diagnosticTest.name,
           category: item.diagnosticTest.category
@@ -455,8 +461,7 @@ export class DiagApi extends Resource<any> {
         FailedReasons: res.FailedReasons,
         GoodNodesGroups: res.GoodNodesGroups,
         Latency: res.Latency,
-        Throughput: res.Throughput,
-        Connectivity: res.Connectivity
+        Throughput: res.Throughput
       } as AggregationResult;
     }
 
@@ -531,11 +536,6 @@ export class DiagApi extends Resource<any> {
       })
     }).pipe(this.errorHandler)
   }
-
-  getJobEvents(jobId: string) {
-    return this.httpGet(`${this.url}/${jobId}/events`);
-
-  }
 }
 
 export class DashboradApi extends Resource<any>{
@@ -570,12 +570,52 @@ export class UserApi extends Resource<any>{
       observe: 'response'
     });
   }
+}
 
-  getUserInfo() {
-    let url = `/.auth/me`;
-    return this.http.get(url, {
-      observe: 'response'
-    });
+export class TerminalApi extends Resource<any>{
+  protected get url(): string {
+    return `http://localhost:3000`;
+  }
+
+  terminal() {
+    let url = `${this.url}/terminals`;
+    return this.http.post<number>(url, {}).pipe(this.errorHandler);
+  }
+
+  connect(pid): WebSocket {
+    let url = `ws://127.0.0.1:3000/terminals/${pid}`;
+    let socket = new WebSocket(url);
+    return socket;
+  }
+}
+
+export const BasicInterceptorSkipHeader = 'X-Basic-Skip_interceptor';
+
+export class DeployApi extends Resource<any>{
+  constructor(protected http: HttpClient, protected adalSvc: MsAdalAngular6Service) {
+    super(http);
+  }
+
+  protected get url(): string {
+    return `https://management.azure.com`;
+  }
+
+  getSubscriptions(): Observable<any> {
+    let url = `${this.url}/subscriptions?api-version=2016-06-01`;
+    // let url = `https://graph.microsoft.com/v1.0/me/messages`;
+    let token = this.adalSvc.getToken(`https://management.azure.com/`);
+    if (token == null) {
+      this.getResourceAccessToken().then(t => {
+        token = t;
+      });
+    }
+    const headers = new HttpHeaders({ 'X-Basic-Skip_interceptor': '', 'Authorization': `Bearer ${token}` });
+    return this.http.get(url, { headers });
+  }
+
+  async getResourceAccessToken() {
+    let token = await this.adalSvc.acquireToken(this.url).toPromise();
+    return token;
   }
 }
 
@@ -595,7 +635,11 @@ export class ApiService {
 
   private userApi: UserApi;
 
-  constructor(private http: HttpClient) { }
+  private terminalApi:TerminalApi;
+
+  private deployApi: DeployApi;
+
+  constructor(private http: HttpClient, private adalSvc: MsAdalAngular6Service) { }
 
   get node(): NodeApi {
     if (!this.nodeApi) {
@@ -644,6 +688,20 @@ export class ApiService {
       this.userApi = new UserApi(this.http);
     }
     return this.userApi;
+  }
+
+  get terminal(): TerminalApi{
+    if(! this.terminalApi){
+      this.terminalApi = new TerminalApi(this.http);
+    }
+    return this.terminalApi;
+  }
+
+  get deploy(): DeployApi {
+    if (!this.deployApi) {
+      this.deployApi = new DeployApi(this.http, this.adalSvc);
+    }
+    return this.deployApi;
   }
 
   static isJSON(item) {

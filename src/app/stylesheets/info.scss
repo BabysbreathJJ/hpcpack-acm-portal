@@ -78,7 +78,7 @@
   @include font-basic($font-size: 13px, $font-color: $info-color);
   @include display-flex($justify-content: space-between, $align-items: center);
   height: 30px;
-  padding: 0 5px;
+  padding: 0 10px;
 
   &:hover {
     cursor: pointer;
@@ -96,7 +96,7 @@
 
 .error-message {
   padding: 1em;
-  @include font-basic($font-size: .9em, $font-color: rgba(206, 80, 57, .9));
+  @include font-basic($font-size: .8em, $font-color: rgba(206, 80, 57, .9));
 }
 
 a {

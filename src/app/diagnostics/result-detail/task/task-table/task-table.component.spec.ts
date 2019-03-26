@@ -2,18 +2,16 @@ import { async, ComponentFixture, TestBed } from '@angular/core/testing';
 import { of } from 'rxjs/observable/of';
 import { TaskTableComponent } from './task-table.component';
 import { MaterialsModule } from '../../../../materials.module';
+import { TableSettingsService } from '../../../../services/table-settings.service';
 import { MatTableDataSource } from '@angular/material';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { JobStateService } from '../../../../services/job-state/job-state.service';
 import { CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
-import { ScrollingModule, CdkVirtualScrollViewport } from '@angular/cdk/scrolling';
-import { TableService } from '../../../../services/table/table.service';
 
-const TableServiceStub = {
-  updateData: (newData, dataSource, propertyName) => newData,
-  loadSetting: (key, initVal) => initVal,
-  saveSetting: (key, val) => undefined,
-  isContentScrolled: () => false
+const tableSettingsStub = {
+  load: (key, initVal) => initVal,
+
+  save: (key, val) => undefined
 }
 
 class JobStateServiceStub {
@@ -28,7 +26,6 @@ class JobStateServiceStub {
 fdescribe('TaskTableComponent', () => {
   let component: TaskTableComponent;
   let fixture: ComponentFixture<TaskTableComponent>;
-  let viewport: CdkVirtualScrollViewport;
 
   beforeEach(async(() => {
     TestBed.configureTestingModule({
@@ -37,12 +34,11 @@ fdescribe('TaskTableComponent', () => {
       ],
       imports: [
         MaterialsModule,
-        ScrollingModule,
         NoopAnimationsModule
       ],
       providers: [
+        { provide: TableSettingsService, useValue: tableSettingsStub },
         { provide: JobStateService, useClass: JobStateServiceStub },
-        { provide: TableService, useValue: TableServiceStub }
       ],
       schemas: [CUSTOM_ELEMENTS_SCHEMA]
     })
@@ -56,18 +52,23 @@ fdescribe('TaskTableComponent', () => {
     component.customizableColumns = [
       { name: 'nodes', displayName: 'Nodes', displayed: true }
     ];
-    component.dataSource = [{
+    component.dataSource = new MatTableDataSource();
+    component.dataSource.data = [{
       customizedData: "node1,node2",
       state: "Finished"
     }];
+    component.currentData = [];
     component.loadFinished = false;
     component.maxPageSize = 120;
-    viewport = component.cdkVirtualScrollViewport;
+
     fixture.detectChanges();
   });
 
   it('should create', () => {
     expect(component).toBeTruthy();
-    expect(viewport.getDataLength()).toEqual(1);
+    let text = fixture.nativeElement.querySelector('.mat-cell.mat-column-nodes .icon-cell .cell-text').textContent;
+    expect(text).toEqual("node1,node2");
+    text = fixture.nativeElement.querySelector('.mat-cell.mat-column-state .icon-cell .cell-text').textContent;
+    expect(text).toEqual("Finished");
   });
 });

@@ -7,35 +7,41 @@
   </div>
 </div>
 
-<mat-dialog-content class="dialog-content">
+<mat-dialog-content>
+  <div *ngIf="errorMessage" class="error-message">
+    <!-- <i class="material-icons">error_outline</i> -->
+    <button mat-icon-button (click)="clearErrorMsg()">
+      <mat-icon color="warn">clear</mat-icon>
+    </button>
+    <div class="error-text">
+      {{errorMessage}}
+    </div>
+  </div>
   <mat-vertical-stepper linear="true" #stepper (selectionChange)="selectionChange($event)">
-    <mat-step label="Select item">
+    <mat-step label="Select test to run">
       <div class="select-tests">
-        <div class="test-tree">
-          <tree-root #tree [nodes]="tests" (updateData)="onTreeLoad($event)">
-            <mat-radio-group [(ngModel)]="selectedTest" (change)="check()">
-              <ng-template #treeNodeTemplate let-node let-index="index">
-                <mat-radio-button *ngIf="node.children == undefined" [value]="node.data" color="primary">
-                  <span>{{node.data.name}}</span>
-                </mat-radio-button>
-                <span *ngIf="node.children != undefined && node.children.length > 0">{{node.data.name}}</span>
-              </ng-template>
-            </mat-radio-group>
-          </tree-root>
-        </div>
+        <tree-root #tree [nodes]="tests" (updateData)="onTreeLoad($event)" class="test-tree">
+          <ng-template #treeNodeTemplate let-node let-index="index">
+            <mat-checkbox *ngIf="node.children == undefined" (change)="check(node, $event.checked)" [checked]="node.data.checked"
+              color="primary">
+              <span>{{node.data.name}}</span>
+            </mat-checkbox>
+            <span *ngIf="node.children != undefined && node.children.length > 0">{{node.data.name}}</span>
+          </ng-template>
+        </tree-root>
         <div class="test-description" *ngIf="selectedDescription">
-          <div class="test-description-title">{{selectedTest.name}} Introduction</div>
+          <div class="test-description-title">{{selectedTest.name | titlecase}} Introduction</div>
           <p class="test-description-text">
             {{selectedDescription}}
             <a href="{{testInfoLink}}">{{testInfoLink}}</a>
           </p>
         </div>
       </div>
-      <div class="step-btn">
+      <div class="step-btn diag-btns">
         <button mat-button color="primary" matStepperNext>Next</button>
       </div>
     </mat-step>
-    <mat-step label="Set parameters" optional>
+    <mat-step label="Set test parameters" optional>
       <div *ngIf="selectedTest == undefined; else testsWithParameters" class="no-params">
         Please select one test in step 1!
       </div>
@@ -46,7 +52,7 @@
         </div>
         <ng-template #showParameters>
           <div class="name">
-            <span>{{selectedTest.name}}</span>
+            <span>{{selectedTest.name | titlecase}}</span>
           </div>
           <div [formGroup]="paraForm">
             <div *ngFor="let parameter of selectedTest.parameters">
@@ -77,34 +83,24 @@
           </div>
         </ng-template>
       </ng-template>
-      <div class="step-btn">
-        <button mat-button color="primary" matStepperNext>Next</button>
+      <div class="step-btn diag-btns">
         <button mat-button color="primary" matStepperPrevious>Back</button>
+        <button mat-button color="primary" matStepperNext>Next</button>
       </div>
     </mat-step>
-    <mat-step label="Set name">
+    <mat-step label="Set test name">
       <div>
         <mat-form-field class="diagTestName">
           <input matInput placeholder="Test name" [(ngModel)]='diagTestName' />
         </mat-form-field>
       </div>
-      <div class="step-btn">
+      <div class="step-btn last-step diag-btns">
         <button mat-button color="primary" matStepperPrevious>Back</button>
       </div>
     </mat-step>
   </mat-vertical-stepper>
+  <div class="diag-btns diag-action">
+    <button mat-raised-button [mat-dialog-close]="false">Cancel</button>
+    <button mat-raised-button color="primary" (click)="getTest()" (keyup.enter)="getTest()" class="diag-run-btn">Run</button>
+  </div>
 </mat-dialog-content>
-<mat-dialog-actions class="actions">
-  <div class="dialog-btns dialog-action">
-    <button mat-stroked-button [mat-dialog-close]="false">Cancel</button>
-    <button mat-flat-button color="primary" (click)="getTest()" (keyup.enter)="getTest()" class="dialog-run-btn">Run</button>
-  </div>
-  <div *ngIf="errorMessage" class="error-message">
-    <button mat-icon-button (click)="clearErrorMsg()">
-      <mat-icon color="warn">clear</mat-icon>
-    </button>
-    <div class="error-text">
-      {{errorMessage}}
-    </div>
-  </div>
-</mat-dialog-actions>

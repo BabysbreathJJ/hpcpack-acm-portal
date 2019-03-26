@@ -1,6 +1,6 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms'
+import { FormsModule, ReactiveFormsModule } from '@angular/forms'
 import { ChartModule } from 'angular2-chartjs';
 import { MaterialsModule } from '../materials.module';
 import { WidgetsModule } from '../widgets/widgets.module';
@@ -25,7 +25,8 @@ import { ScrollingModule } from '@angular/cdk/scrolling';
     FormsModule,
     ChartModule,
     SharedModule,
-    ScrollingModule
+    ScrollingModule,
+    ReactiveFormsModule
   ],
   declarations: [CommandComponent, ResultListComponent, ResultDetailComponent, CommandOutputComponent, NodeSelectorComponent, CommandInputComponent, TaskErrorComponent, MultiCmdsComponent],
   entryComponents: [CommandInputComponent, TaskErrorComponent],

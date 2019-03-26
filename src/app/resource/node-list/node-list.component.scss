@@ -5,36 +5,35 @@ nav {
   margin-bottom: 1em;
 }
 
-.node-checkbox {
-  flex: 0.2;
-}
-
-.node-runningJobCount,
-.node-coreCount,
-.node-memory,
-.node-state,
-.node-eventCount,
-.node-health {
+.mat-column-runningJobCount,
+.mat-column-coreCount,
+.mat-column-memory,
+.mat-column-state,
+.mat-column-eventCount {
   flex: 0.5;
 }
 
-.node-os {
+.mat-column-os {
   flex: 2;
 }
 
-.node-name {
+.mat-column-name {
   flex: 0.8;
 }
 
-.node-os {
+.mat-column-health {
+  flex: 1;
+}
+
+.mat-cell.mat-column-os {
   @include ellipsis-text;
 }
 
-.node-runningJobCount,
-.node-coreCount,
-.node-memory,
-.node-eventCount {
-  @include display-flex(center, flex-end);
+.mat-column-runningJobCount,
+.mat-column-coreCount,
+.mat-column-memory,
+.mat-column-eventCount {
+  justify-content: flex-end;
 }
 
 .online {
@@ -59,10 +58,4 @@ nav {
 
 .inline {
   display: inline;
-}
-
-.list-content {
-  height: 65vh;
-  position: relative;
-  width: 100%;
 }

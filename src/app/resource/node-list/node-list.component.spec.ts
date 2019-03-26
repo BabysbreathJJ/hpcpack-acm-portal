@@ -1,15 +1,15 @@
 import { async, ComponentFixture, TestBed } from '@angular/core/testing';
-import { Directive, Input, Output, EventEmitter, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
+import { Component, Directive, Input, Output, EventEmitter, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
 import { of } from 'rxjs/observable/of';
 import { Router, ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../services/api.service';
+import { TableSettingsService } from '../../services/table-settings.service';
 import { FormsModule } from '@angular/forms'
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { MatDialog } from '@angular/material';
 import { MaterialsModule } from '../../materials.module';
 import { NodeListComponent } from './node-list.component';
-import { TableService } from '../../services/table/table.service';
-import { ScrollingModule, CdkVirtualScrollViewport } from '@angular/cdk/scrolling';
+import { TableDataService } from '../../services/table-data/table-data.service';
 
 @Directive({
   selector: '[routerLink]',
@@ -70,17 +70,21 @@ class ApiServiceStub {
   }
 }
 
-const TableServiceStub = {
-  updateDatasource: (newData, dataSource, propertyName) => dataSource.data = newData,
-  loadSetting: (key, initVal) => initVal,
-  saveSetting: (key, val) => undefined,
-  isContentScrolled: () => false
+const tableSettingsStub = {
+  load: (key, initVal) => initVal,
+
+  save: (key, val) => undefined,
+}
+
+class TableDataServiceStub {
+  updateData(newData, dataSource, propertyName) {
+    return dataSource.data = newData;
+  }
 }
 
 fdescribe('NodeListComponent', () => {
   let component: NodeListComponent;
   let fixture: ComponentFixture<NodeListComponent>;
-  let viewport: CdkVirtualScrollViewport;
 
   beforeEach(async(() => {
     TestBed.configureTestingModule({
@@ -93,13 +97,13 @@ fdescribe('NodeListComponent', () => {
         NoopAnimationsModule,
         FormsModule,
         MaterialsModule,
-        ScrollingModule
       ],
       providers: [
         { provide: ApiService, useClass: ApiServiceStub },
-        { provide: TableService, useValue: TableServiceStub },
+        { provide: TableDataService, useClass: TableDataServiceStub },
         { provide: Router, useValue: routerStub },
-        { provide: ActivatedRoute, useValue: activatedRouteStub }
+        { provide: ActivatedRoute, useValue: activatedRouteStub },
+        { provide: TableSettingsService, useValue: tableSettingsStub },
       ],
       schemas: [CUSTOM_ELEMENTS_SCHEMA]
     })
@@ -117,13 +121,15 @@ fdescribe('NodeListComponent', () => {
   beforeEach(() => {
     fixture = TestBed.createComponent(NodeListComponent);
     component = fixture.componentInstance;
-    viewport = component.cdkVirtualScrollViewport;
     fixture.detectChanges();
   });
 
   it('should create', () => {
     expect(component).toBeTruthy();
-    expect(viewport.getDataLength()).toEqual(1);
+    let text = fixture.nativeElement.querySelector('.mat-cell.mat-column-name').textContent;
+    expect(text).toContain(ApiServiceStub.nodes[0].name);
+    text = fixture.nativeElement.querySelector('.mat-cell.mat-column-state').textContent;
+    expect(text).toContain(ApiServiceStub.nodes[0].state);
   });
 
   it('should run command', () => {

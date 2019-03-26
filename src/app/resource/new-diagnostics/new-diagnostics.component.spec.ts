@@ -87,8 +87,7 @@ class ApiServiceStub {
     ]
   };
   diag = {
-    getDiagTests: () => of(this.tests),
-    getJobEvents: (id: any) => of([])
+    getDiagTests: () => of(this.tests)
   }
 }
 

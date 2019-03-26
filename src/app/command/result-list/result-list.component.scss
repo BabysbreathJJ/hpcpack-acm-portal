@@ -39,39 +39,73 @@
   flex: 0.4;
 }
 
-.job-nodes {
-  flex: 0.3;
-
-  &:hover {
-    cursor: pointer;
-  }
-
-  .cell-text {
-    text-decoration-color: $color;
-    text-decoration-line: underline;
-    text-decoration-style: solid;
-  }
+.color-icon {
+  color: #3f51b5;
 }
 
-.active-job {
+.list-container {
+  width: 100%;
+  overflow-x: hidden;
+  font-family: $font-stack;
+  font-size: .8em;
+}
+
+.list-content {
+  height: calc(100vh - 210px);
+  position: relative;
+}
+
+.list-item,
+.list-header {
+  @include display-flex;
+  height: 40px;
+  width: 100%;
+  background: #ffffff;
+  padding: 5px 15px;
+  border-bottom: 1px solid rgba(0, 0, 0, .12);
+}
+
+.list-header {
+  align-items: center;
+}
+
+:host ::ng-deep .up-to-top {
+  bottom: 2em;
+  right: 2.8em;
+  width: 2em;
+  height: 2em;
+}
+
+:host ::ng-deep .upward {
+  left: 0;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 1em;
+  height: 1em;
   color: $color;
 }
 
-.nodes {
-  overflow-y: auto;
-  height: 85vh;
+@mixin none-animation {
+  animation: none !important;
+  transition-property: none !important;
+}
 
-  .node {
-    @include display-flex(center);
-    height: 25px;
-    font-size: 14px;
+:host ::ng-deep .mat-progress-bar .mat-progress-bar-buffer {
+  @include none-animation;
+}
 
-    .cell-icon {
-      font-size: 1em;
-    }
+:host ::ng-deep .mat-progress-bar .mat-progress-bar-fill {
+  @include none-animation;
+}
 
-    &:hover {
-      color: $color;
-    }
-  }
+.loading {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(238, 238, 238, .55);
+  z-index: 100;
+  @include display-flex(center, center);
 }

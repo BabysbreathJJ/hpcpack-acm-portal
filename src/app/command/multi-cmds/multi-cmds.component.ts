@@ -1,17 +1,13 @@
-import { Component, OnInit, ViewChild, ViewChildren, QueryList, NgZone } from '@angular/core';
+import { Component, OnInit, ViewChild, ViewChildren, QueryList } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatDialog } from '@angular/material';
 import { Subscription } from 'rxjs/Subscription';
 import { Observable } from 'rxjs/Observable';
 import { ApiService, Loop } from '../../services/api.service';
 import { CommandOutputComponent } from '../command-output/command-output.component';
-import { CommandInputComponent } from '../command-input/command-input.component';
 import { ConfirmDialogComponent } from '../../widgets/confirm-dialog/confirm-dialog.component';
 import { JobStateService } from '../../services/job-state/job-state.service';
 import { FormControl } from '@angular/forms';
-import { TableService } from '../../services/table/table.service';
-import { CdkTextareaAutosize } from '@angular/cdk/text-field';
-import { take } from 'rxjs/operators';
 
 @Component({
   selector: 'multi-cmds',
@@ -21,8 +17,6 @@ import { take } from 'rxjs/operators';
 export class MultiCmdsComponent implements OnInit {
   @ViewChildren(CommandOutputComponent)
   private outputs: QueryList<CommandOutputComponent>;
-
-  @ViewChild('autosize') autosize: CdkTextareaAutosize;
 
   public id: string;
 
@@ -52,9 +46,7 @@ export class MultiCmdsComponent implements OnInit {
 
   public newCmd = '';
 
-  private commandIndex = 0;
-
-  private scriptIndex = 0;
+  private commandIndex = -1;
 
   public cmds = [];
 
@@ -62,31 +54,12 @@ export class MultiCmdsComponent implements OnInit {
 
   public timeout = 1800;
 
-  private lastId = 0;
-  public maxPageSize = 100;
-  public scrolled = false;
-  public loadFinished = false;
-  private reverse = true;
-  private selectedNodes = [];
-
-  pivot = Math.round(this.maxPageSize / 2) - 1;
-
-  startIndex = 0;
-  lastScrolled = 0;
-
-  public listLoading = false;
-  public empty = true;
-  private endId = -1;
-
-  public scriptBlock: boolean = false;
-
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
     private api: ApiService,
     private jobStateService: JobStateService,
     private dialog: MatDialog,
-    private tableService: TableService,
-    private ngZone: NgZone,
   ) { }
 
   ngOnInit() {
@@ -95,22 +68,10 @@ export class MultiCmdsComponent implements OnInit {
       this.id = map.firstJobId;
       this.tabs = [];
       this.tabs.push({ id: this.id, outputs: {}, command: '', state: '' });
+      this.commandIndex = this.tabs.length;
       this.updateJob(this.id);
       this.updateNodes(this.id);
     });
-  }
-
-  get initializing() {
-    return this.result.state == 'unknown' || this.result.state == '';
-  }
-
-  isSingleCmd(cmd) {
-    let match = /\r|\n/.exec(cmd);
-    return match ? false : true;
-  }
-
-  public toggleScriptBlock() {
-    this.scriptBlock = !this.scriptBlock;
   }
 
   get isLoaded(): boolean {
@@ -133,12 +94,15 @@ export class MultiCmdsComponent implements OnInit {
           }
           this.result.state = job.state;
           this.result.command = job.commandLine;
-          this.result.progress = job.progress;
           this.tabs[this.selected.value].state = job.state;
           if (!this.tabs[this.selected.value].command) {
             this.tabs[this.selected.value].command = job.commandLine;
-            this.timeout = job.maximumRuntimeSeconds;
-            this.cmds.push({ mode: this.isSingleCmd(job.commandLine) ? 'single' : 'multiple', cmd: job.commandLine });
+            this.cmds.push(job.commandLine);
+            this.timeout = job.defaultTaskMaximumRuntimeSeconds;
+          }
+
+          if (!this.gotTasks) {
+            this.result.nodes = job.targetNodes.map(node => ({ name: node, state: '' }));
           }
           return true;
         },
@@ -149,32 +113,29 @@ export class MultiCmdsComponent implements OnInit {
     );
   }
 
-  private getTasksRequest() {
-    return this.api.command.getTasksByPage(this.id, this.lastId, this.maxPageSize);
+  getNodesFromTasks(tasks) {
+    return tasks.map((e: any) => ({
+      name: e.node,
+      state: e.state,
+      taskId: e.id,
+    }));
   }
 
   updateNodes(id) {
     this.nodesLoop = Loop.start(
       //observable:
-      this.getTasksRequest(),
+      this.api.command.getTasks(id),
       //observer:
       {
         next: (tasks) => {
           if (id != this.id) {
             return;
           }
-          this.empty = false;
           if (tasks.length > 0) {
             this.gotTasks = true;
-            this.result.nodes = this.tableService.updateData(tasks, this.result.nodes, 'id');
-            if (this.endId != -1 && tasks[tasks.length - 1].id != this.endId) {
-              this.listLoading = false;
-            }
+            this.result.nodes = this.getNodesFromTasks(tasks);
           }
-          if (this.reverse && tasks.length < this.maxPageSize) {
-            this.loadFinished = true;
-          }
-          return this.getTasksRequest();
+          return true;
         },
         error: (err) => {
           this.errorMsg = JSON.stringify(err);
@@ -183,19 +144,10 @@ export class MultiCmdsComponent implements OnInit {
     );
   }
 
-  onUpdateLastIdEvent(data) {
-    this.lastId = data.lastId;
-    this.endId = data.endId;
-  }
-
   ngOnDestroy() {
     if (this.subcription) {
       this.subcription.unsubscribe();
     }
-    this.stopCurrentLoop();
-  }
-
-  stopCurrentLoop() {
     if (this.jobLoop) {
       Loop.stop(this.jobLoop);
     }
@@ -209,12 +161,12 @@ export class MultiCmdsComponent implements OnInit {
     this.tabs.forEach(tab => {
       for (let node in tab.outputs) {
         let loop = tab.outputs[node].keyLoop;
-        tab.outputs[node].loading = false;
         if (loop) {
           Loop.stop(loop);
         }
       }
     });
+
   }
 
   //This should work but not in fact! Because this.selector is set later than
@@ -252,7 +204,7 @@ export class MultiCmdsComponent implements OnInit {
     return Loop.start(
       //observable:
       Observable.create((observer) => {
-        this.api.command.getTaskResult(this.id, node.id).subscribe(
+        this.api.command.getTaskResult(this.id, node.taskId).subscribe(
           result => {
             observer.next(result.resultKey);
             observer.complete();
@@ -277,12 +229,8 @@ export class MultiCmdsComponent implements OnInit {
           return true;
         },
         error: (err) => {
-          if (err.status == 404 && !this.isNodeOver(node)) {
-            // return value is assigned to looper.ended in observer.err
-            // false means continue to query key result
-            return false;
-          }
-          else if (err.status == 404 && node.state == 'Finished') {
+          if (err.status = 404 && !this.isOver) {
+            //return value is assigned to looper.ended in observer.err
             return false;
           }
           else {
@@ -306,7 +254,7 @@ export class MultiCmdsComponent implements OnInit {
       output = selectedJobOutputs[node.name];
     }
     if (!output) {
-      selectedJobOutputs[node.name] = {
+      output = selectedJobOutputs[node.name] = {
         content: '',
         next: this.outputInitOffset,
         start: undefined,
@@ -315,7 +263,6 @@ export class MultiCmdsComponent implements OnInit {
         key: null,
         error: ''
       };
-      output = selectedJobOutputs[node.name];
       let onKeyReady = (callback) => {
         if (output.key === null) {
           if (!output.keyLoop) {
@@ -368,7 +315,7 @@ export class MultiCmdsComponent implements OnInit {
       return false;
     }
     //Update start field when and only when it's not updated yet.
-    if (typeof (output.start) === 'undefined' && result.offset >= 0) {
+    if (typeof (output.start) === 'undefined') {
       output.start = result.offset;
     }
     //NOTE: result.end depends on passing an opt.over parameter to API getOutput.
@@ -524,7 +471,7 @@ export class MultiCmdsComponent implements OnInit {
   }
 
   loadPrev(node, onload = undefined) {
-    let output = this.getNodeOutput(node);
+    let output = this.getNodeOutput(node)
     if (output.start === 0 || output.loading) {
       return;
     }
@@ -631,53 +578,28 @@ export class MultiCmdsComponent implements OnInit {
       this.api.command.create(this.newCmd, names, this.timeout).subscribe(obj => {
         this.id = obj.id;
         this.tabs.push({ id: this.id, outputs: {}, command: this.newCmd, state: '' });
-        this.cmds.push({ mode: this.isSingleCmd(this.newCmd) ? 'single' : 'multiple', cmd: this.newCmd });
+        this.cmds.push(this.newCmd);
         this.selected.setValue(this.tabs.length - 1);
+        this.updateJob(this.id);
+        this.updateNodes(this.id);
         this.newCmd = '';
-        this.commandIndex = this.cmds.length - 1;
-        this.scriptIndex = this.cmds.length - 1;
+        this.commandIndex = this.tabs.length;
       });
     }
-  }
-
-  newCommand() {
-    let dialogRef = this.dialog.open(CommandInputComponent, {
-      width: '98%',
-      data: { command: this.result.command, timeout: this.timeout, isSingleCmd: this.isSingleCmd(this.result.command) }
-    });
-    dialogRef.afterClosed().subscribe(params => {
-      if (params && params.command) {
-        let names = this.result.nodes.map(node => node.name);
-        this.api.command.create(params.command, names, params.timeout).subscribe(obj => {
-          this.id = obj.id;
-          this.tabs.push({ id: this.id, outputs: {}, command: params.command, state: '' });
-          this.cmds.push({ mode: this.isSingleCmd(params.command) ? 'single' : 'multiple', cmd: params.command });
-          this.selected.setValue(this.tabs.length - 1);
-          this.newCmd = '';
-          this.commandIndex = this.cmds.length - 1;
-          this.scriptIndex = this.cmds.length - 1;
-        });
-      }
-    });
   }
 
   changeTab(e) {
     this.id = this.tabs[e].id;
     this.selected.setValue(e);
-    this.stopCurrentLoop();
+    Loop.stop(this.nodeLoop);
     this.updateJob(this.id);
     this.updateNodes(this.id);
-    if (this.autoload) {
-      this.startAutoload(this.selectedNode);
-    }
-    else {
-      this.loadOnce(this.selectedNode);
-    }
+    this.startAutoload(this.selectedNode);
   }
 
   cancelCommand() {
     let dialogRef = this.dialog.open(ConfirmDialogComponent, {
-      width: '45%',
+      width: '90%',
       data: {
         title: 'Cancel',
         message: 'Are you sure to cancel the current run of command?'
@@ -686,9 +608,7 @@ export class MultiCmdsComponent implements OnInit {
     dialogRef.afterClosed().subscribe(res => {
       if (res) {
         this.canceling = true;
-        this.api.command.cancel(this.id).subscribe(res => {
-          this.canceling = false;
-        });
+        this.api.command.cancel(this.id).subscribe();
       }
     });
   }
@@ -699,70 +619,22 @@ export class MultiCmdsComponent implements OnInit {
 
 
   getPreviousCmd() {
-    let index = this.commandLine == 'single' ? this.commandIndex : this.scriptIndex;
-    let previousCmd = this.cmds[index];
-    let tempMode;
-    let targetCmd;
-    while (index >= 0) {
-      let tempCmd = this.cmds[index--];
-      tempMode = tempCmd['mode'];
-      targetCmd = tempCmd['cmd'];
-      if (tempMode == this.commandLine)
-        break;
-    }
-    if (tempMode != this.commandLine) {
-      if (previousCmd['mode'] == this.commandLine) {
-        this.newCmd = previousCmd['cmd'];
-      }
+    if (this.commandIndex > 0) {
+      this.newCmd = this.cmds[--this.commandIndex];
     }
     else {
-      this.newCmd = targetCmd;
-      if (this.commandLine == 'single') {
-        this.commandIndex = index < 0 ? 0 : index;
-      }
-      else {
-        this.scriptIndex = index < 0 ? 0 : index;
-      }
+      this.newCmd = this.cmds[this.commandIndex];
     }
   }
 
   getNextCmd() {
-    let index = this.commandLine == 'single' ? this.commandIndex : this.scriptIndex;
-    if (index + 1 == this.cmds.length) {
-      this.newCmd = '';
-      return;
-    }
-    let tempMode;
-    while (index + 1 < this.cmds.length) {
-      let tempCmd = this.cmds[++index];
-      tempMode = tempCmd['mode'];
-      this.newCmd = tempCmd['cmd'];
-      if (tempMode == this.commandLine)
-        break;
-    }
-    if (tempMode != this.commandLine) {
-      this.newCmd = '';
+    if (this.commandIndex + 1 < this.cmds.length) {
+      this.newCmd = this.cmds[++this.commandIndex];
     }
     else {
-      if (this.commandLine == 'single') {
-        this.commandIndex = index;
-      }
-      else {
-        this.scriptIndex = index;
-      }
+      this.newCmd = '';
+      this.commandIndex = this.cmds.length;
     }
 
-  }
-
-  changeMode() {
-    this.commandIndex = (this.cmds.length - 1) > 0 ? this.cmds.length - 1 : 0;
-    this.scriptIndex = (this.cmds.length - 1) > 0 ? this.cmds.length - 1 : 0;
-    this.newCmd = '';
-  }
-
-  triggerResize() {
-    // Wait for changes to be applied, then trigger textarea resize.
-    this.ngZone.onStable.pipe(take(1))
-      .subscribe(() => this.autosize.resizeToFitContent(true));
   }
 }

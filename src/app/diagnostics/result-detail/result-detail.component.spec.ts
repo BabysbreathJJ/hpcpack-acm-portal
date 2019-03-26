@@ -3,16 +3,17 @@ import { ResultDetailComponent } from './result-detail.component';
 import { ReplaySubject, of } from 'rxjs';
 import { ParamMap, Params, convertToParamMap, ActivatedRoute, Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
-import { GeneralReportComponent } from './diags/general-template/general-report/general-report.component';
+import { CpuReportComponent } from './diags/benchmark/cpu/cpu-report/cpu-report.component';
 import { RingReportComponent } from './diags/mpi/ring/ring-report/ring-report.component';
 import { PingPongReportComponent } from './diags/mpi/pingpong/pingpong-report/pingpong-report.component';
 import { ResultLayoutComponent } from './result-layout/result-layout.component';
 import { MaterialsModule } from '../../materials.module';
-import { OverviewResultComponent } from './diags/general-template/overview-result/overview-result.component';
+import { OverviewResultComponent } from './diags/benchmark/cpu/overview-result/overview-result.component';
 import { TaskDetailComponent } from './task/task-detail/task-detail.component';
 import { TaskTableComponent } from './task/task-table/task-table.component';
 import { NodesInfoComponent } from './diags/nodes-info/nodes-info.component';
 import { EventListComponent } from '../../widgets/event-list/event-list.component';
+import { RingOverviewResultComponent } from './diags/mpi/ring/overview-result/overview-result.component';
 import { PingPongOverviewResultComponent } from './diags/mpi/pingpong/overview-result/overview-result.component';
 import { GoodNodesComponent } from './diags/mpi/pingpong/good-nodes/good-nodes.component';
 import { FailedReasonsComponent } from './diags/mpi/pingpong/failed-reasons/failed-reasons.component';
@@ -22,10 +23,10 @@ import { CUSTOM_ELEMENTS_SCHEMA, Directive, Input, NgModule } from '@angular/cor
 import { ChartModule } from 'angular2-chartjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { TableService } from '../../services/table/table.service';
+import { TableSettingsService } from '../../services/table-settings.service';
+import { TableDataService } from '../../services/table-data/table-data.service';
 import { JobStateService } from '../../services/job-state/job-state.service';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { ScrollingModule } from '@angular/cdk/scrolling';
 
 @Directive({
   selector: '[routerLink]',
@@ -59,7 +60,7 @@ export class ActivatedRouteStub {
 }
 
 class ApiServiceStub {
-  results = { id: 5563, diagnosticTest: { name: 'test', category: 'test' }, progress: 0, state: 'Finished', name: 'test', createdAt: '2018-06-20T10:39:26.0930804+00:00', lastChangedAtAt: '2018-06-20T10:40:24.4964341+00:00', targetNodes: ["testNode1", "testNode2"] };
+  results = { id: 5563, diagnosticTest: { name: 'test', category: 'test' }, progress: 0, state: 'Finished', name: 'test', createdAt: '2018-06-20T10:39:26.0930804+00:00', lastChangedAtAt: '2018-06-20T10:40:24.4964341+00:00' };
   taskResult = [{
     customizedData: "Standard_H16r",
     jobId: 301,
@@ -69,16 +70,20 @@ class ApiServiceStub {
   diag = {
     getDiagJob: (id: any) => of(this.results),
     getDiagTasksByPage: () => of(this.taskResult),
-    getJobAggregationResult: (id: any) => of({ Error: "error message" }),
-    getJobEvents: (id: any) => of([])
+    getJobAggregationResult: (id: any) => of({ Error: "error message" })
   }
 }
 
-const TableServiceStub = {
-  updateData: (newData, dataSource, propertyName) => newData,
-  loadSetting: (key, initVal) => initVal,
-  saveSetting: (key, val) => undefined,
-  isContentScrolled: () => false
+const tableSettingsStub = {
+  load: (key, initVal) => initVal,
+
+  save: (key, val) => undefined
+}
+
+class TableDataServiceStub {
+  updateData(newData, dataSource, propertyName) {
+    return dataSource.data = newData;
+  }
 }
 
 class JobStateServiceStub {
@@ -102,9 +107,10 @@ const routerStub = {
     TaskTableComponent,
     ResultLayoutComponent,
     RingReportComponent,
+    RingOverviewResultComponent,
     NodesInfoComponent,
     OverviewResultComponent,
-    GeneralReportComponent,
+    CpuReportComponent,
     FailedReasonsComponent,
     GoodNodesComponent,
     ScrollToTopComponent,
@@ -113,10 +119,10 @@ const routerStub = {
     RouterLinkDirectiveStub
   ],
   imports: [
-    MaterialsModule, ChartModule, CommonModule, FormsModule, ScrollingModule
+    MaterialsModule, ChartModule, CommonModule, FormsModule
   ],
   entryComponents: [
-    GeneralReportComponent, RingReportComponent, PingPongReportComponent
+    CpuReportComponent, RingReportComponent, PingPongReportComponent
   ],
   schemas: [CUSTOM_ELEMENTS_SCHEMA]
 })
@@ -133,7 +139,8 @@ fdescribe('DiagResultDetailComponent', () => {
       providers: [
         { provide: ActivatedRoute, useValue: activatedRoute },
         { provide: ApiService, useClass: ApiServiceStub },
-        { provide: TableService, useValue: TableServiceStub },
+        { provide: TableSettingsService, useValue: tableSettingsStub },
+        { provide: TableDataService, useClass: TableDataServiceStub },
         { provide: JobStateService, useClass: JobStateServiceStub },
         { provide: Router, useValue: routerStub }
       ],

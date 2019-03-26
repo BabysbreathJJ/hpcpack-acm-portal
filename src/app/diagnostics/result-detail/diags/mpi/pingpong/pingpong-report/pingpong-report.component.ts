@@ -1,6 +1,8 @@
 import { Component, OnInit, Input, OnDestroy } from '@angular/core';
+import { MatTableDataSource } from '@angular/material';
 import { ApiService, Loop } from '../../../../../../services/api.service';
-import { TableService } from '../../../../../../services/table/table.service';
+import { TableSettingsService } from '../../../../../../services/table-settings.service';
+import { TableDataService } from '../../../../../../services/table-data/table-data.service';
 import { DiagReportService } from '../../../../../../services/diag-report/diag-report.service';
 
 @Component({
@@ -11,44 +13,40 @@ import { DiagReportService } from '../../../../../../services/diag-report/diag-r
 export class PingPongReportComponent implements OnInit {
   @Input() result: any;
 
-  private dataSource = [];
+  private dataSource = new MatTableDataSource();
+  private currentData = [];
   private lastId = 0;
-  public pageSize = 300;
-  public loadFinished = false;
+  private pageSize = 120;
+  private loadFinished = false;
+  private scrollDirection = 'down';
 
   private jobId: string;
   private interval: number;
   private tasksLoop: Object;
   private jobState: string;
-  public tasks = [];
-  public events = [];
-  public nodes = [];
-  public failedNodes: any;
-  public failedReasons: any;
+  private tasks = [];
+  private events = [];
+  private nodes = [];
+  private failedNodes: any;
+  private failedReasons: any;
   public aggregationResult: object;
-  public latencyData: any;
-  public throughputData: any;
+  private latencyData: any;
+  private throughputData: any;
   public goodGroups: Array<any>;
   public badNodes: Array<any>;
-  public connectivityData: Array<any>;
-
-  public loading = false;
-  public empty = true;
-  private endId = -1;
 
   private componentName = "PingPongReport";
 
-  public customizableColumns = [
-    { name: 'node', displayed: true },
-    { name: 'state', displayed: true },
-    { name: 'remark', displayed: true },
-    { name: 'detail', displayed: true }
+  private customizableColumns = [
+    { name: 'nodes', displayName: 'Nodes', displayed: true },
   ];
+
 
 
   constructor(
     private api: ApiService,
-    private tableService: TableService,
+    private settings: TableSettingsService,
+    private tableDataService: TableDataService,
     private diagReportService: DiagReportService
   ) {
     this.interval = 5000;
@@ -56,10 +54,6 @@ export class PingPongReportComponent implements OnInit {
 
   ngOnInit() {
     this.jobId = this.result.id;
-    this.jobState = this.result.state;
-    if (this.jobFinished) {
-      this.getAggregationResult();
-    }
     this.tasksLoop = this.getTasksInfo();
   }
 
@@ -71,7 +65,6 @@ export class PingPongReportComponent implements OnInit {
       this.failedReasons = this.aggregationResult['FailedReasons'];
       this.goodGroups = this.aggregationResult['GoodNodesGroups'];
       this.badNodes = this.aggregationResult['BadNodes'];
-      this.connectivityData = this.aggregationResult['Connectivity'];
     }
   }
 
@@ -92,21 +85,15 @@ export class PingPongReportComponent implements OnInit {
       this.getTasksRequest(),
       {
         next: (result) => {
-          this.empty = false;
-          if (this.endId != -1 && result[result.length - 1].id != this.endId) {
-            this.loading = false;
-          }
-          if (result.length < this.pageSize) {
+          this.currentData = result;
+          this.tableDataService.updateData(result, this.dataSource, 'id');
+          if (result.length < this.pageSize && this.scrollDirection == 'down') {
             this.loadFinished = true;
-          }
-          if (result.length > 0) {
-            this.dataSource = this.tableService.updateData(result, this.dataSource, 'id');
           }
           if (this.jobFinished) {
             this.getAggregationResult();
           }
           this.getJobInfo();
-          this.getEvents();
           return this.getTasksRequest();
         }
       },
@@ -116,7 +103,7 @@ export class PingPongReportComponent implements OnInit {
 
   onUpdateLastIdEvent(data) {
     this.lastId = data.lastId;
-    this.endId = data.endId;
+    this.scrollDirection = data.direction;
   }
 
   ngOnDestroy() {
@@ -130,12 +117,9 @@ export class PingPongReportComponent implements OnInit {
       this.jobState = res.state;
       this.result = res;
       this.nodes = res.targetNodes;
-    });
-  }
-
-  getEvents() {
-    this.api.diag.getJobEvents(this.result.id).subscribe(res => {
-      this.events = res;
+      if (res.events !== undefined) {
+        this.events = res.events;
+      }
     });
   }
 

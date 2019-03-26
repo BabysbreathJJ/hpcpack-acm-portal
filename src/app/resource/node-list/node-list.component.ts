@@ -1,4 +1,4 @@
-import { Component, Input, ViewChild } from '@angular/core';
+import { Component, Input } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { MatTableDataSource, MatDialog, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material';
 import { SelectionModel } from '@angular/cdk/collections';
@@ -7,9 +7,8 @@ import { NewDiagnosticsComponent } from '../new-diagnostics/new-diagnostics.comp
 import { NewCommandComponent } from '../new-command/new-command.component';
 import { TableOptionComponent } from '../../widgets/table-option/table-option.component';
 import { ApiService, Loop } from '../../services/api.service';
-import { TableService } from '../../services/table/table.service';
-import { VirtualScrollService } from '../../services/virtual-scroll/virtual-scroll.service';
-import { CdkVirtualScrollViewport } from '@angular/cdk/scrolling';
+import { TableSettingsService } from '../../services/table-settings.service';
+import { TableDataService } from '../../services/table-data/table-data.service';
 
 @Component({
   selector: 'resource-node-list',
@@ -17,8 +16,6 @@ import { CdkVirtualScrollViewport } from '@angular/cdk/scrolling';
   styleUrls: ['./node-list.component.scss']
 })
 export class NodeListComponent {
-  @ViewChild('content') cdkVirtualScrollViewport: CdkVirtualScrollViewport;
-
   public query = { filter: '' };
 
   private subcription: Subscription;
@@ -26,10 +23,12 @@ export class NodeListComponent {
   public dataSource: MatTableDataSource<any> = new MatTableDataSource();
 
   static customizableColumns = [
-    { name: 'state', displayed: true, displayName: 'State' },
-    { name: 'os', displayed: true, displayName: 'OS' },
-    { name: 'runningJobCount', displayed: true, displayName: 'Jobs' },
-    { name: 'memory', displayed: true, displayName: 'Memory(MB)' },
+    { name: 'health', displayName: 'Health', displayed: true, },
+    { name: 'state', displayName: 'State', displayed: true, },
+    { name: 'os', displayName: 'OS', displayed: true },
+    { name: 'runningJobCount', displayName: 'Jobs', displayed: true },
+    { name: 'eventCount', displayName: 'Events', displayed: true },
+    { name: 'memory', displayName: 'Memory', displayed: true },
   ];
 
   private availableColumns;
@@ -40,49 +39,39 @@ export class NodeListComponent {
 
   private lastId = 0;
   private nodeLoop: object;
-  public maxPageSize = 30000;
+  public maxPageSize = 120;
+  public currentData = [];
   public scrolled = false;
   public loadFinished = false;
   private interval = 5000;
-  private reverse = true;
+  private loading = false;
   private scrollDirection = 'down';
-  public selectedNodes = [];
-
-  pivot = Math.round(this.maxPageSize / 2) - 1;
-
-  startIndex = 0;
-  lastScrolled = 0;
-
-  public loading = false;
-  public empty = true;
-  private endId = -1;
+  private selectedNodes = [];
 
   constructor(
     private dialog: MatDialog,
     private api: ApiService,
     private router: Router,
     private route: ActivatedRoute,
-    private tableService: TableService,
-    private virtualScrollService: VirtualScrollService
+    private settings: TableSettingsService,
+    private tableDataService: TableDataService
   ) { }
 
   ngOnInit() {
     this.loadSettings();
     this.getDisplayedColumns();
+    // this.api.node.getAll().subscribe(nodes => {
+    //   this.dataSource.data = nodes;
+    // });
     this.nodeLoop = Loop.start(
       this.getNodesRequest(),
       {
         next: (result) => {
-          this.empty = false;
-          if (result.length > 0) {
-            this.tableService.updateDatasource(result, this.dataSource, 'id');
-            if (this.endId != -1 && result[result.length - 1].id != this.endId) {
-              this.loading = false;
-            }
-          }
-          if (this.reverse && result.length < this.maxPageSize) {
+          this.currentData = result;
+          if (this.scrollDirection == 'down' && result.length < this.maxPageSize) {
             this.loadFinished = true;
           }
+          this.tableDataService.updateData(result, this.dataSource, 'id');
           return this.getNodesRequest();
         }
       },
@@ -100,6 +89,14 @@ export class NodeListComponent {
     }
     this.subcription.unsubscribe();
   }
+
+  public onScrollEvent(data) {
+    this.lastId = data.dataIndex == -1 ? 0 : this.dataSource.data[data.dataIndex]['id'];
+    this.loadFinished = data.loadFinished;
+    this.scrolled = data.scrolled;
+    this.scrollDirection = data.scrollDirection;
+  }
+
   private getNodesRequest() {
     return this.api.node.getNodesByPage(this.lastId, this.maxPageSize)
   }
@@ -113,16 +110,16 @@ export class NodeListComponent {
     this.router.navigate(['.'], { relativeTo: this.route, queryParams: this.query });
   }
 
-  public isAllSelected() {
+  private isAllSelected() {
     const numSelected = this.selectedNodes.length;
-    const numRows = this.dataSource.filteredData.length;
+    const numRows = this.dataSource.data.length;
     return numSelected == numRows;
   }
 
-  public masterToggle() {
+  private masterToggle() {
     this.isAllSelected() ?
       this.selectedNodes = [] :
-      this.dataSource.filteredData.forEach(row => {
+      this.dataSource.data.forEach(row => {
         let index = this.selectedNodes.findIndex(n => {
           return n.id == row.id;
         });
@@ -132,7 +129,7 @@ export class NodeListComponent {
       });
   }
 
-  public isSelected(node) {
+  private isSelected(node) {
     let index = this.selectedNodes.findIndex(n => {
       return n.id == node.id;
     });
@@ -153,7 +150,7 @@ export class NodeListComponent {
 
   runDiagnostics() {
     let dialogRef = this.dialog.open(NewDiagnosticsComponent, {
-      width: '60%',
+      width: '98%',
       data: {}
     });
 
@@ -179,7 +176,7 @@ export class NodeListComponent {
     });
 
     dialogRef.afterClosed().subscribe(params => {
-      if (params && params.command) {
+      if (params.command) {
         let names = this.selectedNodes.map(e => e.name);
         this.api.command.create(params.command, names, params.timeout).subscribe(obj => {
           if (params.multiCmds) {
@@ -204,7 +201,7 @@ export class NodeListComponent {
 
   customizeTable(): void {
     let dialogRef = this.dialog.open(TableOptionComponent, {
-      width: '60%',
+      width: '98%',
       data: { columns: this.availableColumns }
     });
     dialogRef.afterClosed().subscribe(res => {
@@ -217,44 +214,14 @@ export class NodeListComponent {
   }
 
   saveSettings(): void {
-    this.tableService.saveSetting('NodeListComponent', this.availableColumns);
+    this.settings.save('NodeListComponent', this.availableColumns);
   }
 
   loadSettings(): void {
-    this.availableColumns = this.tableService.loadSetting('NodeListComponent', NodeListComponent.customizableColumns);
+    this.availableColumns = this.settings.load('NodeListComponent', NodeListComponent.customizableColumns);
   }
 
-  trackByFn(index, item) {
-    return this.tableService.trackByFn(item, this.displayedColumns);
-  }
+  deleteNodes() {
 
-  getColumnOrder(col) {
-    let index = this.displayedColumns.findIndex(item => {
-      return item == col;
-    });
-
-    let order = index + 1;
-    if (order) {
-      return { 'order': index + 1 };
-    }
-    else {
-      return { 'display': 'none' };
-    }
-  }
-
-
-  indexChanged($event) {
-    let result = this.virtualScrollService.indexChangedCalc(this.maxPageSize, this.pivot, this.cdkVirtualScrollViewport, this.dataSource.data, this.lastScrolled, this.startIndex);
-    this.pivot = result.pivot;
-    this.lastScrolled = result.lastScrolled;
-    this.lastId = result.lastId == undefined ? this.lastId : result.lastId;
-    this.endId = result.endId == undefined ? this.endId : result.endId;
-    this.loading = result.loading;
-    this.startIndex = result.startIndex;
-    this.scrolled = result.scrolled;
-  }
-
-  get showScrollBar() {
-    return this.tableService.isContentScrolled(this.cdkVirtualScrollViewport.elementRef.nativeElement);
   }
 }

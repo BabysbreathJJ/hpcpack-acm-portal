@@ -1,13 +1,13 @@
-import { Component, OnInit, ViewChild, ElementRef } from '@angular/core';
-import { MatDialog } from '@angular/material';
+import { Component, OnInit } from '@angular/core';
+import { MatTableDataSource, MatDialog } from '@angular/material';
+import { SelectionModel } from '@angular/cdk/collections';
 import { TableOptionComponent } from '../../widgets/table-option/table-option.component';
 import { ApiService, Loop } from '../../services/api.service';
+import { TableSettingsService } from '../../services/table-settings.service';
 import { JobStateService } from '../../services/job-state/job-state.service';
-import { TableService } from '../../services/table/table.service';
-import { CdkVirtualScrollViewport } from '@angular/cdk/scrolling';
-import { VirtualScrollService } from '../../services/virtual-scroll/virtual-scroll.service';
-import { Router, ActivatedRoute } from '@angular/router';
-import { ListJob } from '../../models/diagnostics/list-job';
+import { TableDataService } from '../../services/table-data/table-data.service';
+import { ClusrunJob } from '../../models/command/clusrun-job';
+import { FormGroup, Validators, FormControl } from '@angular/forms';
 
 @Component({
   selector: 'app-result-list',
@@ -15,74 +15,68 @@ import { ListJob } from '../../models/diagnostics/list-job';
   styleUrls: ['./result-list.component.scss']
 })
 export class ResultListComponent implements OnInit {
-  @ViewChild('content') cdkVirtualScrollViewport: CdkVirtualScrollViewport;
-  @ViewChild('nodes') nodes: ElementRef;
-  public dataSource = [];
+
+  public dataSource = new MatTableDataSource();
 
   static customizableColumns = [
-    { name: 'createdAt', displayed: true, displayName: 'Created' },
-    { name: 'nodes', display: true, displayName: 'Nodes' },
-    { name: 'command', displayed: true, displayName: 'Command' },
-    { name: 'state', displayed: true, displayName: 'State' },
-    { name: 'progress', displayed: true, displayName: 'Progress' },
-    { name: 'updatedAt', displayed: true, displayName: 'Last Changed' },
+    { name: 'createdAt', displayName: 'Created', displayed: true },
+    { name: 'command', displayName: 'Command', displayed: true },
+    { name: 'state', displayName: 'State', displayed: true },
+    { name: 'progress', displayName: 'Progress', displayed: true },
+    { name: 'updatedAt', displayName: 'Last Changed', displayed: true },
   ];
 
   private availableColumns;
 
   public displayedColumns;
 
+  private selection = new SelectionModel(true, []);
+
   private lastId = 0;
-
+  private previousFirstItemId = -1;
+  private previousResultSize = -1;
   private commandLoop: object;
-  public maxPageSize = 300;
+  public maxPageSize = 1000;
+
   private reverse = true;
+  public currentData = [];
   public scrolled = false;
-  public loadFinished = false;
-  private interval = 2000;
-
-  pivot = Math.round(this.maxPageSize / 2) - 1;
-
-  startIndex = 0;
-  lastScrolled = 0;
-
-  public loading = false;
-  public empty = true;
-  private endId = -1;
-
-  public targetNodes: Array<ListJob>;
-  public showTargetNodes = false;
-  public selectedJobId = -1;
-  public windowTitle: string;
+  private interval = 5000;
+  public loading = true;
+  public jobs: Array<ClusrunJob>;
+  public queryForm: FormGroup;
 
   constructor(
     private api: ApiService,
-    private router: Router,
-    private route: ActivatedRoute,
     private jobStateService: JobStateService,
-    private tableService: TableService,
+    private tableDataService: TableDataService,
     private dialog: MatDialog,
-    private virtualScrollService: VirtualScrollService
+    private settings: TableSettingsService,
   ) { }
 
   ngOnInit() {
     this.loadSettings();
     this.getDisplayedColumns();
+    this.queryForm = new FormGroup({
+      'querySize': new FormControl(this.maxPageSize, [
+        Validators.min(1),
+        Validators.max(1000)
+      ]),
+      'queryId': new FormControl(this.lastId, [
+        Validators.min(0)
+      ])
+    });
 
-    this.commandLoop = Loop.start(
+    this.commandLoop = this.excuteLoop();
+  }
+
+  excuteLoop() {
+    return Loop.start(
       this.getCommandRequest(),
       {
         next: (result) => {
-          this.empty = false;
-          if (result.length > 0) {
-            this.dataSource = this.tableService.updateData(result, this.dataSource, 'id');
-            if (this.endId != -1 && result[result.length - 1].id != this.endId) {
-              this.loading = false;
-            }
-          }
-          if (this.reverse && result.length < this.maxPageSize) {
-            this.loadFinished = true;
-          }
+          this.jobs = result;
+          this.loading = false;
           return this.getCommandRequest();
         }
       },
@@ -90,54 +84,35 @@ export class ResultListComponent implements OnInit {
     );
   }
 
+  get querySize() {
+    return this.queryForm.get('querySize');
+  }
+
+  get queryId() {
+    return this.queryForm.get('queryId');
+  }
+
   ngOnDestroy() {
     if (this.commandLoop) {
       Loop.stop(this.commandLoop);
     }
   }
-  private stateIcon(state) {
-    return this.jobStateService.stateIcon(state);
-  }
-
-  private stateClass(state) {
-    return this.jobStateService.stateClass(state);
-  }
-
-  private getCommandRequest() {
-    return this.api.command.getJobsByPage({ lastId: this.lastId, count: this.maxPageSize, reverse: this.reverse });
-  }
-
-
-  getDisplayedColumns(): void {
-    let columns = this.availableColumns.filter(e => e.displayed).map(e => e.name);
-    // columns.push('actions');
-    this.displayedColumns = ['id'].concat(columns);
-  }
-
-  customizeTable(): void {
-    let dialogRef = this.dialog.open(TableOptionComponent, {
-      width: '60%',
-      data: { columns: this.availableColumns }
-    });
-    dialogRef.afterClosed().subscribe(res => {
-      if (res) {
-        this.availableColumns = res.columns;
-        this.getDisplayedColumns();
-        this.saveSettings();
-      }
-    });
-  }
-
-  saveSettings(): void {
-    this.tableService.saveSetting('CommandList', this.availableColumns);
-  }
-
-  loadSettings(): void {
-    this.availableColumns = this.tableService.loadSetting('CommandList', ResultListComponent.customizableColumns);
-  }
 
   trackByFn(index, item) {
-    return this.tableService.trackByFn(item, this.displayedColumns);
+    return this.tableDataService.trackByFn(item, this.displayedColumns);
+  }
+
+  queryJobs() {
+    if (this.querySize.invalid || this.queryId.invalid) {
+      return;
+    }
+    if (this.queryId.value != this.lastId || this.querySize.value != this.maxPageSize) {
+      this.lastId = this.queryId.value;
+      this.maxPageSize = this.querySize.value;
+      this.loading = true;
+      Loop.stop(this.commandLoop);
+      this.commandLoop = this.excuteLoop();
+    }
   }
 
   getColumnOrder(col) {
@@ -154,39 +129,58 @@ export class ResultListComponent implements OnInit {
     }
   }
 
-  goDetailPage(id) {
-    this.router.navigate(['.', `${id}`], { relativeTo: this.route });
+  private stateIcon(state) {
+    return this.jobStateService.stateIcon(state);
   }
 
-  getTargetNodes(id, nodes) {
-    this.showTargetNodes = true;
-    if (this.nodes) {
-      this.nodes.nativeElement.scrollTop = 0;
-    }
-    this.selectedJobId = id;
-    this.windowTitle = `${nodes.length} Nodes`;
-    this.targetNodes = nodes;
+  private stateClass(state) {
+    return this.jobStateService.stateClass(state);
   }
 
-  onShowWnd(condition: boolean) {
-    this.showTargetNodes = condition;
-    if (!condition) {
-      this.selectedJobId = -1;
-    }
+  private getCommandRequest() {
+    return this.api.command.getJobsByPage({ lastId: this.lastId, count: this.maxPageSize, reverse: this.reverse });
   }
 
-  indexChanged($event) {
-    let result = this.virtualScrollService.indexChangedCalc(this.maxPageSize, this.pivot, this.cdkVirtualScrollViewport, this.dataSource, this.lastScrolled, this.startIndex);
-    this.pivot = result.pivot;
-    this.lastScrolled = result.lastScrolled;
-    this.lastId = result.lastId == undefined ? this.lastId : result.lastId;
-    this.endId = result.endId == undefined ? this.endId : result.endId;
-    this.loading = result.loading;
-    this.startIndex = result.startIndex;
-    this.scrolled = result.scrolled;
+  getDisplayedColumns(): void {
+    let columns = this.availableColumns.filter(e => e.displayed).map(e => e.name);
+    // columns.push('actions');
+    this.displayedColumns = ['id'].concat(columns);
   }
 
-  get showScrollBar() {
-    return this.tableService.isContentScrolled(this.cdkVirtualScrollViewport.elementRef.nativeElement);
+  customizeTable(): void {
+    let dialogRef = this.dialog.open(TableOptionComponent, {
+      width: '98%',
+      data: { columns: this.availableColumns }
+    });
+    dialogRef.afterClosed().subscribe(res => {
+      if (res) {
+        this.availableColumns = res.columns;
+        this.getDisplayedColumns();
+        this.saveSettings();
+      }
+    });
   }
+
+  saveSettings(): void {
+    this.settings.save('CommandList', this.availableColumns);
+  }
+
+  loadSettings(): void {
+    this.availableColumns = this.settings.load('CommandList', ResultListComponent.customizableColumns);
+  }
+
+  private scrollTimer = null;
+  onScroll($event, delay: number = 100) {
+    clearTimeout(this.scrollTimer);
+    this.scrollTimer = setTimeout(() => {
+      let scrolledTopHeight = $event.srcElement.scrollTop;
+      if (scrolledTopHeight > 0) {
+        this.scrolled = true;
+      }
+      else if (scrolledTopHeight === 0) {
+        this.scrolled = false;
+      }
+    });
+  }
+
 }

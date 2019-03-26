@@ -1,31 +1,15 @@
-import { of } from 'rxjs/observable/of';
+import { TestBed, inject } from '@angular/core/testing';
+
 import { AuthService } from './auth.service';
 
-fdescribe('AuthService', () => {
-  let apiServiceSpy;
-  let authService: AuthService;
-  let userServiceSpy;
+describe('AuthService', () => {
   beforeEach(() => {
-    userServiceSpy = jasmine.createSpyObj('UserService', ['getUserInfo']);
-    userServiceSpy.getUserInfo.and.returnValue(
-      of({
-        status: '200',
-        body: [
-          { user_id: 'test user' }
-        ]
-      })
-    );
-    apiServiceSpy = jasmine.createSpy('ApiService');
-    apiServiceSpy.user = userServiceSpy;
-    authService = new AuthService(apiServiceSpy);
+    TestBed.configureTestingModule({
+      providers: [AuthService]
+    });
   });
 
-  it('should be created', () => {
-    expect(authService).toBeTruthy();
-  });
-
-  it('#getUserInfo should set username', () => {
-    authService.getUserInfo();
-    expect(authService.username).toEqual('test user');
-  });
+  it('should be created', inject([AuthService], (service: AuthService) => {
+    expect(service).toBeTruthy();
+  }));
 });

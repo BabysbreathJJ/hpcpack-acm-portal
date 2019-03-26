@@ -1,15 +1,14 @@
 import { async, ComponentFixture, TestBed } from '@angular/core/testing';
-import { Directive, Input, Output, EventEmitter, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
+import { Component, Directive, Input, Output, EventEmitter, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
 import { of } from 'rxjs/observable/of';
 import { FormsModule } from '@angular/forms';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { MaterialsModule } from '../../materials.module';
 import { ApiService } from '../../services/api.service';
+import { TableSettingsService } from '../../services/table-settings.service';
 import { JobStateService } from '../../services/job-state/job-state.service';
 import { ResultListComponent } from './result-list.component';
-import { TableService } from '../../services/table/table.service';
-import { ScrollingModule, CdkVirtualScrollViewport } from '@angular/cdk/scrolling';
-import { Router, ActivatedRoute } from '@angular/router';
+import { TableDataService } from '../../services/table-data/table-data.service';
 
 @Directive({
   selector: '[routerLink]',
@@ -23,9 +22,6 @@ class RouterLinkDirectiveStub {
     this.navigatedTo = this.linkParams;
   }
 }
-
-const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
-const activatedRouteSpy = jasmine.createSpyObj('ActivatedRoute', ['']);
 
 @Directive({
   selector: '[appWindowScroll]',
@@ -53,17 +49,21 @@ class JobStateServiceStub {
   }
 }
 
-const TableServiceStub = {
-  updateData: (newData, dataSource, propertyName) => newData,
-  loadSetting: (key, initVal) => initVal,
-  saveSetting: (key, val) => undefined,
-  isContentScrolled: () => false
+const tableSettingsStub = {
+  load: (key, initVal) => initVal,
+
+  save: (key, val) => undefined
+}
+
+class TableDataServiceStub {
+  updateData(newData, dataSource, propertyName) {
+    return dataSource.data = newData;
+  }
 }
 
 fdescribe('DiagResultListComponent', () => {
   let component: ResultListComponent;
   let fixture: ComponentFixture<ResultListComponent>;
-  let viewport: CdkVirtualScrollViewport;
 
   beforeEach(async(() => {
     TestBed.configureTestingModule({
@@ -75,15 +75,13 @@ fdescribe('DiagResultListComponent', () => {
       imports: [
         NoopAnimationsModule,
         FormsModule,
-        MaterialsModule,
-        ScrollingModule
+        MaterialsModule
       ],
       providers: [
         { provide: ApiService, useClass: ApiServiceStub },
         { provide: JobStateService, useClass: JobStateServiceStub },
-        { provide: TableService, useValue: TableServiceStub },
-        { provide: Router, useValue: routerSpy },
-        { provide: ActivatedRoute, useValue: activatedRouteSpy }
+        { provide: TableSettingsService, useValue: tableSettingsStub },
+        { provide: TableDataService, useClass: TableDataServiceStub }
       ],
       schemas: [CUSTOM_ELEMENTS_SCHEMA]
     })
@@ -93,12 +91,14 @@ fdescribe('DiagResultListComponent', () => {
   beforeEach(() => {
     fixture = TestBed.createComponent(ResultListComponent);
     component = fixture.componentInstance;
-    viewport = component.cdkVirtualScrollViewport;
     fixture.detectChanges();
   });
 
   it('should create', () => {
     expect(component).toBeTruthy();
-    expect(viewport.getDataLength()).toEqual(1);
+    let text = fixture.nativeElement.querySelector('.mat-cell.mat-column-diagnostic').textContent;
+    expect(text).toContain(ApiServiceStub.results[0].diagnosticTest.name);
+    text = fixture.nativeElement.querySelector('.mat-cell.mat-column-category').textContent;
+    expect(text).toContain(ApiServiceStub.results[0].diagnosticTest.category);
   });
 });

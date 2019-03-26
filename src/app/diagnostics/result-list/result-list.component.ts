@@ -1,13 +1,12 @@
-import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
-import { MatDialog } from '@angular/material';
+import { Component, OnInit, OnDestroy, ViewChild, HostListener, ElementRef, ViewChildren } from '@angular/core';
+import { MatTableDataSource, MatPaginator } from '@angular/material';
+import { MatDialog, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material';
+import { SelectionModel } from '@angular/cdk/collections';
 import { ApiService, Loop } from '../../services/api.service';
 import { TableOptionComponent } from '../../widgets/table-option/table-option.component';
+import { TableSettingsService } from '../../services/table-settings.service';
 import { JobStateService } from '../../services/job-state/job-state.service';
-import { TableService } from '../../services/table/table.service';
-import { VirtualScrollService } from '../../services/virtual-scroll/virtual-scroll.service';
-import { CdkVirtualScrollViewport } from '@angular/cdk/scrolling';
-import { Router, ActivatedRoute } from '@angular/router';
-import { ListJob } from '../../models/diagnostics/list-job';
+import { TableDataService } from '../../services/table-data/table-data.service';
 
 @Component({
   selector: 'diagnostics-results',
@@ -15,55 +14,38 @@ import { ListJob } from '../../models/diagnostics/list-job';
   styleUrls: ['./result-list.component.scss'],
 })
 export class ResultListComponent implements OnInit, OnDestroy {
-  @ViewChild('content') cdkVirtualScrollViewport: CdkVirtualScrollViewport;
-  @ViewChild('nodes') nodes: ElementRef;
-
   static customizableColumns = [
-    { name: 'createdAt', displayed: true, displayName: 'Created' },
-    { name: 'nodes', display: true, displayName: 'Nodes' },
-    { name: 'category', displayed: true, displayName: 'Category' },
-    { name: 'item', displayed: true, displayName: 'Item' },
-    { name: 'name', displayed: true, displayName: 'Test Name' },
-    { name: 'state', displayed: true, displayName: 'State' },
-    { name: 'progress', displayed: true, displayName: 'Progress' },
-    { name: 'updatedAt', displayed: true, displayName: 'Last Changed' }
+    { name: 'createdAt', displayName: 'Created', displayed: true },
+    { name: 'test', displayName: 'Test', displayed: true },
+    { name: 'diagnostic', displayName: 'Diagnostic', displayed: true },
+    { name: 'category', displayName: 'Category', displayed: true },
+    { name: 'state', displayName: 'State', displayed: true },
+    { name: 'progress', displayName: 'Progress', displayed: true },
+    { name: 'lastChangedAt', displayName: 'Last Changed', displayed: true }
   ];
 
   private availableColumns;
 
-  public dataSource = [];
-  public displayedColumns = [];
+  public dataSource = new MatTableDataSource();
+  public displayedColumns = ['id', 'test', 'diagnostic', 'category', 'progress', 'state', 'createdAt', 'lastChangedAt'];
 
+  private selection = new SelectionModel(true, []);
   private interval: number;
   private diagsLoop: Object;
   private lastId = 0;
-  public maxPageSize = 300;
+  public maxPageSize = 120;
   private reverse = true;
+  public currentData = [];
   public scrolled = false;
   public loadFinished = false;
 
-  pivot = Math.round(this.maxPageSize / 2) - 1;
-
-  startIndex = 0;
-  lastScrolled = 0;
-
-  public loading = false;
-  public empty = true;
-  private endId = -1;
-
-  public targetNodes: Array<ListJob>;
-  public showTargetNodes = false;
-  public selectedJobId = -1;
-  public windowTitle: string;
-
   constructor(
     private api: ApiService,
-    private router: Router,
-    private route: ActivatedRoute,
     private jobStateService: JobStateService,
-    private tableService: TableService,
+    private tableDataService: TableDataService,
+    private settings: TableSettingsService,
     public dialog: MatDialog,
-    private virtualScrollService: VirtualScrollService
+    public el: ElementRef,
   ) {
     this.interval = 2000;
   }
@@ -88,16 +70,14 @@ export class ResultListComponent implements OnInit, OnDestroy {
       this.getDiagRequest(),
       {
         next: (result) => {
-          this.empty = false;
-          if (result.length > 0) {
-            this.dataSource = this.tableService.updateData(result, this.dataSource, 'id');
-            if (this.endId != -1 && result[result.length - 1].id != this.endId) {
-              this.loading = false;
-            }
+          if (result.length > 0 && result[0]['id'] <= result[result.length - 1]['id']) {
+            result = result.reverse();
           }
+          this.currentData = result;
           if (this.reverse && result.length < this.maxPageSize) {
             this.loadFinished = true;
           }
+          this.tableDataService.updateData(result, this.dataSource, 'id');
           return this.getDiagRequest();
         }
       },
@@ -111,6 +91,38 @@ export class ResultListComponent implements OnInit, OnDestroy {
     }
   }
 
+  public onScrollEvent(data) {
+    this.lastId = data.dataIndex < 0 ? 0 : this.dataSource.data[data.dataIndex]['id'];
+    this.loadFinished = data.loadFinished;
+    this.scrolled = data.scrolled;
+    this.reverse = data.scrollDirection == 'down' ? true : false;
+  }
+
+  private hasNoSelection(): boolean {
+    return this.selection.selected.length == 0;
+  }
+
+  private isAllSelected() {
+    const numSelected = this.selection.selected.length;
+    const numRows = this.dataSource.data.length;
+    return numSelected == numRows;
+  }
+
+  private masterToggle() {
+    this.isAllSelected() ?
+      this.selection.clear() :
+      this.dataSource.data.forEach(row => this.selection.select(row));
+  }
+
+  private select(node) {
+    this.selection.clear();
+    this.selection.toggle(node);
+  }
+
+  applyFilter(text: string): void {
+    this.dataSource.filter = text;
+  }
+
   getDisplayedColumns(): void {
     let columns = this.availableColumns.filter(e => e.displayed).map(e => e.name);
     // columns.push('actions');
@@ -119,7 +131,7 @@ export class ResultListComponent implements OnInit, OnDestroy {
 
   customizeTable(): void {
     let dialogRef = this.dialog.open(TableOptionComponent, {
-      width: '60%',
+      width: '98%',
       data: { columns: this.availableColumns }
     });
     dialogRef.afterClosed().subscribe(res => {
@@ -132,64 +144,10 @@ export class ResultListComponent implements OnInit, OnDestroy {
   }
 
   saveSettings(): void {
-    this.tableService.saveSetting('DiagList', this.availableColumns);
+    this.settings.save('DiagList', this.availableColumns);
   }
 
   loadSettings(): void {
-    this.availableColumns = this.tableService.loadSetting('DiagList', ResultListComponent.customizableColumns);
-  }
-
-  trackByFn(index, item) {
-    return this.tableService.trackByFn(item, this.displayedColumns);
-  }
-
-  getColumnOrder(col) {
-    let index = this.displayedColumns.findIndex(item => {
-      return item == col;
-    });
-
-    let order = index + 1;
-    if (order) {
-      return { 'order': index + 1 };
-    }
-    else {
-      return { 'display': 'none' };
-    }
-  }
-
-  goDetailPage(id) {
-    this.router.navigate(['.', `${id}`], { relativeTo: this.route });
-  }
-
-  getTargetNodes(id, nodes) {
-    this.showTargetNodes = true;
-    if (this.nodes) {
-      this.nodes.nativeElement.scrollTop = 0;
-    }
-    this.selectedJobId = id;
-    this.windowTitle = `${nodes.length} Nodes`;
-    this.targetNodes = nodes;
-  }
-
-  onShowWnd(condition: boolean) {
-    this.showTargetNodes = condition;
-    if (!condition) {
-      this.selectedJobId = -1;
-    }
-  }
-
-  indexChanged($event) {
-    let result = this.virtualScrollService.indexChangedCalc(this.maxPageSize, this.pivot, this.cdkVirtualScrollViewport, this.dataSource, this.lastScrolled, this.startIndex);
-    this.pivot = result.pivot;
-    this.lastScrolled = result.lastScrolled;
-    this.lastId = result.lastId == undefined ? this.lastId : result.lastId;
-    this.endId = result.endId == undefined ? this.endId : result.endId;
-    this.loading = result.loading;
-    this.startIndex = result.startIndex;
-    this.scrolled = result.scrolled;
-  }
-
-  get showScrollBar() {
-    return this.tableService.isContentScrolled(this.cdkVirtualScrollViewport.elementRef.nativeElement);
+    this.availableColumns = this.settings.load('DiagList', ResultListComponent.customizableColumns);
   }
 }

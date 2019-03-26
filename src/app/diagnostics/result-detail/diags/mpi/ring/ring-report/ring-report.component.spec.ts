@@ -5,7 +5,8 @@ import { RingReportComponent } from './ring-report.component';
 import { MaterialsModule } from '../../../../../../materials.module';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ApiService } from '../../../../../../services/api.service';
-import { TableService } from '../../../../../../services/table/table.service';
+import { TableSettingsService } from '../../../../../../services/table-settings.service';
+import { TableDataService } from '../../../../../../services/table-data/table-data.service';
 import { DiagReportService } from '../../../../../../services/diag-report/diag-report.service';
 
 @Directive({
@@ -73,17 +74,7 @@ class DiagTaskTableComponent {
 
   @Output()
   updateLastIdEvent = new EventEmitter();
-
-  @Input()
-  public empty: boolean;
 }
-
-@Component({ selector: 'mpi-performance', template: '' })
-class PerformanceComponent {
-  @Input()
-  result: any;
-}
-
 
 @Component({
   template: `
@@ -108,20 +99,23 @@ class ApiServiceStub {
     aggregationResult: { Error: "error message" }
   };
 
-  static events = [];
-
   diag = {
     getDiagTasksByPage: (id: any, lastId, count) => of(ApiServiceStub.taskResult),
     getDiagJob: (id: any) => of(ApiServiceStub.jobResult),
-    getJobAggregationResult: (id: any) => of({ Error: "error message" }),
-    getJobEvents: (id: any) => of(ApiServiceStub.events)
+    getJobAggregationResult: (id: any) => of({ Error: "error message" })
   }
 }
 
-const TableServiceStub = {
-  updateData: (newData, dataSource, propertyName) => newData,
-  loadSetting: (key, initVal) => initVal,
-  saveSetting: (key, val) => undefined
+const tableSettingsStub = {
+  load: (key, initVal) => initVal,
+
+  save: (key, val) => undefined
+}
+
+class TableDataServiceStub {
+  updateData(newData, dataSource, propertyName) {
+    return dataSource.data = newData;
+  }
 }
 
 class DiagReportServiceStub {
@@ -155,13 +149,13 @@ fdescribe('RingReportComponent', () => {
         RingOverviewResultComponent,
         DiagTaskTableComponent,
         EventListComponent,
-        PerformanceComponent,
         WrapperComponent
       ],
       imports: [MaterialsModule, NoopAnimationsModule],
       providers: [
         { provide: ApiService, useClass: ApiServiceStub },
-        { provide: TableService, useValue: TableServiceStub },
+        { provide: TableSettingsService, useValue: tableSettingsStub },
+        { provide: TableDataService, useClass: TableDataServiceStub },
         { provide: DiagReportService, useClass: DiagReportServiceStub }
       ]
     })

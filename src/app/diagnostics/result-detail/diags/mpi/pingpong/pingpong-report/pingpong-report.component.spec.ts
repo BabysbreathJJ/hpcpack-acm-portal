@@ -4,8 +4,9 @@ import { of } from 'rxjs/observable/of';
 import { PingPongReportComponent } from './pingpong-report.component';
 import { MaterialsModule } from '../../../../../../materials.module';
 import { ApiService } from '../../../../../../services/api.service';
+import { TableSettingsService } from '../../../../../../services/table-settings.service';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { TableService } from '../../../../../../services/table/table.service';
+import { TableDataService } from '../../../../../../services/table-data/table-data.service';
 import { DiagReportService } from '../../../../../../services/diag-report/diag-report.service';
 
 @Component({ selector: 'app-result-layout', template: '' })
@@ -78,9 +79,6 @@ class DiagTaskTableComponent {
 
   @Output()
   updateLastIdEvent = new EventEmitter();
-
-  @Input()
-  public empty: boolean;
 }
 
 @Component({
@@ -109,15 +107,20 @@ class ApiServiceStub {
   diag = {
     getDiagTasksByPage: (id: any, lastId, count) => of(ApiServiceStub.taskResult),
     getDiagJob: (id: any) => of(ApiServiceStub.jobResult),
-    getJobAggregationResult: (id: any) => of({ Error: "error message" }),
-    getJobEvents: (id: any) => of([])
+    getJobAggregationResult: (id: any) => of({ Error: "error message" })
   }
 }
 
-const TableServiceStub = {
-  updateData: (newData, dataSource, propertyName) => newData,
-  loadSetting: (key, initVal) => initVal,
-  saveSetting: (key, val) => undefined
+const tableSettingsStub = {
+  load: (key, initVal) => initVal,
+
+  save: (key, val) => undefined
+}
+
+class TableDataServiceStub {
+  updateData(newData, dataSource, propertyName) {
+    return dataSource.data = newData;
+  }
 }
 
 
@@ -158,7 +161,8 @@ fdescribe('PingPongReportComponent', () => {
       imports: [MaterialsModule, NoopAnimationsModule],
       providers: [
         { provide: ApiService, useClass: ApiServiceStub },
-        { provide: TableService, useValue: TableServiceStub },
+        { provide: TableSettingsService, useValue: tableSettingsStub },
+        { provide: TableDataService, useClass: TableDataServiceStub },
         { provide: DiagReportService, useClass: DiagReportServiceStub }
       ],
       schemas: [CUSTOM_ELEMENTS_SCHEMA]

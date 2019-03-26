@@ -5,5 +5,7 @@
 
 export const environment = {
   production: true,
-  apiBase: '/v1'
+  apiBase: 'https://hpcacm.eastus.azurecontainer.io/v1'
+  // apiBase: 'https://localhost:443/v1'
+  // apiBase: 'https://hwtpu26meplas.southeastasia.azurecontainer.io/v1'
 };

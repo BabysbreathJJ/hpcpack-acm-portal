@@ -50,7 +50,7 @@ export class ResultLayoutComponent implements OnInit {
 
   cancelDiag() {
     let dialogRef = this.dialog.open(ConfirmDialogComponent, {
-      width: '45%',
+      width: '90%',
       data: {
         title: 'Cancel',
         message: 'Are you sure to cancel the current run of diagnostic?'
@@ -66,10 +66,10 @@ export class ResultLayoutComponent implements OnInit {
 
   rerunDiag() {
     let dialogRef = this.dialog.open(ConfirmDialogComponent, {
-      width: '45%',
+      width: '90%',
       data: {
-        title: 'Run Diagnostic',
-        message: 'Are you sure to clone and run the current diagnostic?'
+        title: 'Copy',
+        message: 'Are you sure to copy the current diagnostic?'
       }
     });
     dialogRef.afterClosed().subscribe(res => {

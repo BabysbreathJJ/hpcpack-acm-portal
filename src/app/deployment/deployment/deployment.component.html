@@ -1,0 +1,78 @@
+<mat-form-field>
+  <mat-select placeholder="Subscription">
+    <!-- <mat-option *ngFor="let s of subscriptions" [value]="s.subscriptionId">
+      {{s.displayName}}
+    </mat-option> -->
+    <mat-option>
+      subscription name
+    </mat-option>
+  </mat-select>
+</mat-form-field>
+<div class="actions">
+  <button mat-raised-button (click)="customizeTable()">
+    <div class="action-btn">
+      <i class="material-icons btn-icon">settings</i>
+      <div class="action-text">Customize Columns...</div>
+    </div>
+  </button>
+  <button mat-raised-button [disabled]="hasNoSelection()" (click)="enroll()">
+    <div class="action-btn">
+      <i class="material-icons btn-icon">local_hospital</i>
+      <div class="action-text">Enroll...</div>
+    </div>
+  </button>
+  <button mat-raised-button [disabled]="hasNoSelection()" (click)="deploy()">
+    <div class="action-btn">
+      <i class="material-icons btn-icon">call_to_action</i>
+      <div class="action-text">Deploy...</div>
+    </div>
+  </button>
+</div>
+<mat-table #table [dataSource]="dataSource">
+  <!--
+     Note that these columns can be defined in any order. The actual rendered
+     columns are set as a property on the row definition, that is displayedColumns."
+    -->
+
+  <ng-container matColumnDef="select">
+    <mat-header-cell *matHeaderCellDef>
+      <mat-checkbox color="primary" (change)="$event ? masterToggle() : null" [checked]="selectedNodes.length > 0 && isAllSelected()">
+      </mat-checkbox>
+    </mat-header-cell>
+    <mat-cell *matCellDef="let node">
+      <mat-checkbox color="primary" (click)="$event.stopPropagation();" (change)="$event? updateSelectedNodes(node) : null" [checked]="isSelected(node)">
+      </mat-checkbox>
+    </mat-cell>
+  </ng-container>
+
+  <ng-container matColumnDef="name">
+    <mat-header-cell *matHeaderCellDef> Name </mat-header-cell>
+    <mat-cell *matCellDef="let node">
+      <div class="icon-cell">
+        <mat-icon class="cell-icon">desktop_windows</mat-icon>
+        {{node.name}}
+      </div>
+    </mat-cell>
+  </ng-container>
+
+  <ng-container matColumnDef="kind">
+    <mat-header-cell *matHeaderCellDef> Kind </mat-header-cell>
+    <mat-cell *matCellDef="let node">
+      <div class="icon-cell">
+        <div class="cell-text"> {{node.kind }} </div>
+      </div>
+    </mat-cell>
+  </ng-container>
+
+  <ng-container matColumnDef="type">
+    <mat-header-cell *matHeaderCellDef> Type </mat-header-cell>
+    <mat-cell *matCellDef="let node">
+      <div class="icon-cell">
+        <div class="cell-text">{{node.type }}</div>
+      </div>
+    </mat-cell>
+  </ng-container>
+
+  <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
+  <mat-row *matRowDef="let node; columns: displayedColumns;" (click)="selection.toggle(node)"></mat-row>
+</mat-table>

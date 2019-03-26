@@ -1,10 +1,11 @@
 import { Component, OnInit, ViewChild, ViewContainerRef, ComponentFactoryResolver } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs/Subscription';
+import { TestResult } from '../../models/test-result';
 import { ApiService } from '../../services/api.service';
 import { PingPongReportComponent } from './diags/mpi/pingpong/pingpong-report/pingpong-report.component';
 import { RingReportComponent } from './diags/mpi/ring/ring-report/ring-report.component';
-import { GeneralReportComponent } from './diags/general-template/general-report/general-report.component';
+import { CpuReportComponent } from './diags/benchmark/cpu/cpu-report/cpu-report.component';
 import { switchMap } from 'rxjs/operators';
 
 @Component({
@@ -48,7 +49,8 @@ export class ResultDetailComponent implements OnInit {
     switch (name) {
       case 'Pingpong': comp = PingPongReportComponent; break;
       case 'Ring': comp = RingReportComponent; break;
-      default: comp = GeneralReportComponent;
+      case 'CPU': comp = CpuReportComponent; break;
+      default: comp = CpuReportComponent;
     }
     return comp;
 

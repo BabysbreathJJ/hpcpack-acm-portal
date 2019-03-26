@@ -3,5 +3,4 @@ export class CommandResult {
   commandLine: string;
   state: string;
   targetNodes: any;
-  progress: number;
 }

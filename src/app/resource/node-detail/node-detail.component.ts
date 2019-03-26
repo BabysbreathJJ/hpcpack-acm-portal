@@ -1,4 +1,4 @@
-import { Component, AfterViewInit, OnInit, OnDestroy, ViewChild } from '@angular/core';
+import { Component, AfterViewInit, OnInit, OnDestroy, ViewChild, ElementRef, ViewEncapsulation } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { MatTableDataSource } from '@angular/material';
 import { Subscription } from 'rxjs/Subscription';
@@ -8,15 +8,20 @@ import { ChartComponent } from 'angular2-chartjs';
 import { JobStateService } from '../../services/job-state/job-state.service';
 import { DateFormatterService } from '../../services/date-formatter/date-formatter.service';
 import { MetaDataCompute } from '../../models/resource/metadata-compute';
+import { Terminal } from 'xterm';
+import { fit } from 'xterm/lib/addons/fit/fit';
+import * as Attach from 'xterm/lib/addons/attach/attach';
 
 @Component({
   selector: 'app-node-detail',
   templateUrl: './node-detail.component.html',
-  styleUrls: ['./node-detail.component.scss']
+  styleUrls: ['./node-detail.component.scss', '../../../../node_modules/xterm/dist/xterm.css'],
+  encapsulation: ViewEncapsulation.None
 })
 
 export class NodeDetailComponent implements OnInit, OnDestroy {
   @ViewChild('cpuChart') cpuChart: ChartComponent;
+  @ViewChild('terminalContainer') terminal: ElementRef;
 
   nodeProperties: any = {};
 
@@ -40,7 +45,7 @@ export class NodeDetailComponent implements OnInit, OnDestroy {
         },
         scaleLabel: {
           display: true,
-          labelString: 'Percentage ( % )'
+          labelString: 'Percentage'
         }
       }]
     },
@@ -153,6 +158,9 @@ export class NodeDetailComponent implements OnInit, OnDestroy {
 
   private nodeId: string;
 
+  public xterm: Terminal;
+  public showTerminal = false;
+
   constructor(
     private api: ApiService,
     private jobStateService: JobStateService,
@@ -186,7 +194,7 @@ export class NodeDetailComponent implements OnInit, OnDestroy {
         next: (res) => {
           this.labels = this.makeLabels(res.history);
           let cpuTotal = this.makeCpuTotalData(res.history);
-          this.cpuData = { labels: this.labels, datasets: [{ label: 'CPU usage', data: cpuTotal, borderColor: '#215ebb', fill: false }] };
+          this.cpuData = { labels: this.labels, datasets: [{ label: 'CPU usage', data: cpuTotal, borderColor: '#215ebb' }] };
           return true;
         }
       },
@@ -211,6 +219,10 @@ export class NodeDetailComponent implements OnInit, OnDestroy {
       },
       this.jobInterval
     );
+
+    this.xterm = new Terminal();
+    this.xterm.open(this.terminal.nativeElement);
+    fit(this.xterm);
   }
 
   ngOnDestroy() {
@@ -308,5 +320,30 @@ export class NodeDetailComponent implements OnInit, OnDestroy {
     });
 
     return cpuTotal;
+  }
+
+  public socket: WebSocket;
+  connect(node) {
+    this.showTerminal = true;
+    this.xterm.writeln('Connecting...');
+    this.xterm.focus();
+
+    this.api.terminal.terminal().subscribe(pid => {
+      this.socket = this.api.terminal.connect(pid);
+      this.socket.onopen = this.runTerminal();
+    });
+
+  }
+  disconnect(node) {
+    Attach.detach(this.xterm, this.socket);
+    this.showTerminal = false;
+    this.socket.close();
+    this.xterm.reset();
+  }
+
+  runTerminal(): any {
+    this.xterm.clear();
+    this.xterm.focus();
+    Attach.attach(this.xterm, this.socket, true, true);
   }
 }

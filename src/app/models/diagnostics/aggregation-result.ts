@@ -5,5 +5,4 @@ export class AggregationResult {
     GoodNodesGroups: Array<Array<string>>;
     Latency: Object;
     Throughput: Object;
-    Connectivity: Array<Array<Object>>
 }

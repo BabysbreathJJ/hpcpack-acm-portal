@@ -14,31 +14,23 @@ export class NodeHeatmapComponent implements OnInit, OnDestroy {
   private interval: number;
   public selectedCategory: string;
   private heatmapLoop: Object;
-  private categoryWays = { cpu: ['By Node', 'By Core'] };
-  public ways = [];
   public activeMode;
-  public pageSize = 10000;
 
   constructor(
     private api: ApiService
   ) {
     this.interval = 3000;
-    this.selectedCategory = "cpu";
-    this.ways = this.categoryWays[this.selectedCategory];
-    this.activeMode = this.ways[0];
+    this.activeMode = 'Node';
   }
 
   ngOnInit() {
     this.api.heatmap.getCategories().subscribe(categories => {
       this.categories = categories;
+      this.selectedCategory = categories[0];
+      this.heatmapLoop = this.getHeatmapInfo();
     })
-
-    this.heatmapLoop = this.getHeatmapInfo();
   }
 
-  setActiveMode(way) {
-    this.activeMode = way;
-  }
 
   categoryCtrl(): void {
     this.nodes = [];
@@ -54,12 +46,12 @@ export class NodeHeatmapComponent implements OnInit, OnDestroy {
       //observable
       //If you want to emulate the get operation, please call the in-memory web api function below.
       //this.api.heatmap.getMockData(this.selectedCategory),
-      this.api.heatmap.getMetricInfo(this.selectedCategory, this.pageSize),
+      this.api.heatmap.get(this.selectedCategory),
       //observer
       {
         next: (result) => {
           this.nodes = result.results;
-          return true;
+          return this.api.heatmap.get(this.selectedCategory);
         }
       },
       //interval in ms

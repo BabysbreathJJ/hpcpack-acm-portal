@@ -39,7 +39,7 @@ export class NewDiagnosticsComponent implements OnInit, OnDestroy {
       this.tests = tests.treeData;
       tests['rawData'].forEach(t => {
         if (t.parameters) {
-          this.ctlConfig[t.category + t.name] = {};
+          this.ctlConfig[t.name] = {};
           t.parameters.forEach(p => {
             let validators = [];
             if (p.required) {
@@ -49,7 +49,7 @@ export class NewDiagnosticsComponent implements OnInit, OnDestroy {
               validators.push(Validators.min(p.min));
               validators.push(Validators.max(p.max));
             }
-            this.ctlConfig[t.category + t.name][p.name] = [p.defaultValue, validators];
+            this.ctlConfig[t.name][p.name] = [p.defaultValue, validators];
           });
         }
       });
@@ -64,18 +64,20 @@ export class NewDiagnosticsComponent implements OnInit, OnDestroy {
     tree.treeModel.expandAll();
   }
 
-  public check() {
+  private check(node, checked) {
     this.selectedDescription = '';
     this.testInfoLink = '';
-    this.selectedDescription = this.selectedTest.description;
-    if (this.selectedDescription) {
-      let index = this.selectedDescription.indexOf('http');
-      if (index != -1) {
-        this.testInfoLink = this.selectedDescription.substr(index);
-        this.selectedDescription = this.selectedDescription.substr(0, index);
+    if (checked) {
+      this.selectedDescription = node.data.description;
+      if (this.selectedDescription) {
+        let index = this.selectedDescription.indexOf('http');
+        if (index != -1) {
+          this.testInfoLink = this.selectedDescription.substr(index);
+          this.selectedDescription = this.selectedDescription.substr(0, index);
+        }
       }
     }
-    this.updateCheckedNode();
+    this.updateCheckedNode(node, checked);
   }
 
   private _sub: Subscription[];
@@ -97,27 +99,41 @@ export class NewDiagnosticsComponent implements OnInit, OnDestroy {
     }
   }
 
-  private updateCheckedNode() {
-    this._sub = new Array<Subscription>();
-    let paras = this.selectedTest.parameters;
-    if (paras) {
-      this.paraForm = this.fb.group(this.ctlConfig[this.selectedTest.category + this.selectedTest.name]);
-      for (let i = 0; i < paras.length; i++) {
-        let sub = this.paraForm.controls[paras[i].name].valueChanges.subscribe(data => {
-          if (paras[i].whenChanged != undefined) {
-            let selected = paras[i].whenChanged[data];
-            for (let key in selected) {
-              this.paraForm.controls[key].setValue(selected[key].value);
-              if (selected[key].description) {
-                this.updateHints(selected[key].description, paras, key);
-              }
-            }
-          }
-        });
-        this._sub.push(sub);
+  private updateCheckedNode(node: any, checked: any) {
+    let allNodes = node.treeModel.nodes;
+    for (let i = 0; i < allNodes.length; i++) {
+      for (let j = 0; j < allNodes[i].children.length; j++) {
+        allNodes[i].children[j].checked = false;
       }
     }
-    this.diagTestName = `${this.selectedTest.name} created by ${this.authService.username}`;
+    node.data.checked = checked;
+    this._sub = new Array<Subscription>();
+    if (checked) {
+      this.selectedTest = node.data;
+      let paras = this.selectedTest.parameters;
+      if (paras) {
+        this.paraForm = this.fb.group(this.ctlConfig[this.selectedTest.name]);
+        for (let i = 0; i < paras.length; i++) {
+          let sub = this.paraForm.controls[paras[i].name].valueChanges.subscribe(data => {
+            if (paras[i].whenChanged != undefined) {
+              let selected = paras[i].whenChanged[data];
+              for (let key in selected) {
+                this.paraForm.controls[key].setValue(selected[key].value);
+                if (selected[key].description) {
+                  this.updateHints(selected[key].description, paras, key);
+                }
+              }
+            }
+          });
+          this._sub.push(sub);
+        }
+      }
+      this.diagTestName = `${this.selectedTest.name} created by ${this.authService.username}`;
+    }
+    else {
+      this.selectedTest = undefined;
+      this.diagTestName = `created by ${this.authService.username}`;
+    }
   }
 
   ngOnDestroy() {

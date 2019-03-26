@@ -32,6 +32,11 @@ export class MainComponent {
             title: 'Cluster Run',
             icon: 'call_to_action',
         },
+        // {
+        //     link: '/deployment',
+        //     title: 'Deployment',
+        //     icon: 'cloud_upload'
+        // }
     ];
 
     public get items(): any[] {
@@ -80,22 +85,23 @@ export class MainComponent {
         //of the gap, and it seems good enough now. The ultimate way may be to
         //replace the Bootstrap Grid system with something else, which involves
         //a lot more work.
-        // if (this.isLoggedIn) {
-        setTimeout(() => {
-            this.sidePane.toggle();
-        }, 1000);
-        // }
+        if (this.isLoggedIn) {
+            setTimeout(() => {
+                this.sidePane.toggle();
+            }, 1000);
+        }
     }
 
     private get isLoggedIn(): boolean {
-        return this.authService.isLoggedIn;
+        return (this.authService.isLoggedIn || localStorage.getItem('isLoggedIn') == 'true') && this.router.url !== '/login';
     }
 
     public get userName(): string {
         return this.authService.username;
     }
 
-    public get auth(): boolean {
-        return this.authService.hasAuth;
+    public logout(): void {
+        this.authService.logout();
+        this.router.navigate(['/login']);
     }
 }

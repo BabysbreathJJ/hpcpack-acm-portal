@@ -11,8 +11,4 @@ export class GoodNodesComponent {
 
   constructor() { }
 
-  trackByFn(index, item) {
-    return item.join();
-  }
-
 }

@@ -5,35 +5,52 @@
       <div>Customize Columns...</div>
     </div>
   </button>
+
+  <div class="filter-area" [formGroup]="queryForm">
+    <mat-form-field [floatLabel]="'always'">
+      <input matInput type="number" placeholder="Last Job ID" formControlName="queryId">
+      <mat-hint>Set 0 to return recent result</mat-hint>
+      <mat-error *ngIf="queryId.hasError('min')">
+        ID must not be negative.
+      </mat-error>
+    </mat-form-field>
+    <mat-form-field [floatLabel]="'always'">
+      <input matInput type="number" placeholder="Result size" min="1" max="1000" formControlName="querySize">
+      <mat-hint>The number is 1 - 1000.</mat-hint>
+      <mat-error *ngIf="querySize.hasError('min') || querySize.hasError('max')">
+        Query Size should be 1 - 1000.
+      </mat-error>
+    </mat-form-field>
+    <button mat-icon-button color="primary" (click)="queryJobs()">
+      <mat-icon>search</mat-icon>
+    </button>
+  </div>
 </div>
 
 <div class="list-container">
-  <div class="list-header" [ngClass]="{'list-header-scrolled': showScrollBar}">
-    <div class="header job-id" [ngStyle]="getColumnOrder('id')">
+  <div class="list-header">
+    <div class="job-id" [ngStyle]="getColumnOrder('id')">
       ID
     </div>
-    <div class="header job-created" [ngStyle]="getColumnOrder('createdAt')">
+    <div class="job-created" [ngStyle]="getColumnOrder('createdAt')">
       Created
     </div>
-    <div class="header job-command" [ngStyle]="getColumnOrder('command')">
+    <div class="job-command" [ngStyle]="getColumnOrder('command')">
       Command
     </div>
-    <div class="header job-state" [ngStyle]="getColumnOrder('state')">
+    <div class="job-state" [ngStyle]="getColumnOrder('state')">
       State
     </div>
-    <div class="header job-progress" [ngStyle]="getColumnOrder('progress')">
+    <div class="job-progress" [ngStyle]="getColumnOrder('progress')">
       Progress
     </div>
-    <div class="header job-updated" [ngStyle]="getColumnOrder('updatedAt')">
+    <div class="job-updated" [ngStyle]="getColumnOrder('updatedAt')">
       Last Changed
-    </div>
-    <div class="header job-nodes" [ngStyle]="getColumnOrder('nodes')">
-      Nodes Number
     </div>
   </div>
   <div class="list-content">
-    <cdk-virtual-scroll-viewport itemSize="40" #content class="list-content" (scrolledIndexChange)="indexChanged($event)">
-      <div *cdkVirtualFor="let job of dataSource; templateCacheSize: 0; trackBy: trackByFn.bind(this)" class="list-item">
+    <cdk-virtual-scroll-viewport itemSize="20" (scroll)="onScroll($event)" #content class="list-content">
+      <div *cdkVirtualFor="let job of jobs; templateCacheSize: 0; trackBy: trackByFn.bind(this)" class="list-item">
         <div class="icon-cell job-id" [ngStyle]="getColumnOrder('id')">
           <i class="material-icons cell-icon color-icon">call_to_action</i>
           <a [routerLink]="job.id" class="cell-text">{{job.id}}</a>
@@ -63,32 +80,12 @@
           <i class="material-icons cell-icon">access_alarm</i>
           <div class="cell-text"> {{job.updatedAt | date:'yyyy-MM-dd HH:mm:ss'}} </div>
         </div>
-
-        <div class="icon-cell job-nodes" [ngStyle]="getColumnOrder('nodes')" (click)="getTargetNodes(job.id,job.targetNodes)"
-          [ngClass]="{'active-job': selectedJobId == job.id}">
-          <i class="material-icons cell-icon">devices</i>
-          <div class="cell-text"> {{job.targetNodes.length}} </div>
-        </div>
       </div>
     </cdk-virtual-scroll-viewport>
-
-    <app-scroll-to-top [scrolled]="scrolled" [targetEle]="content"></app-scroll-to-top>
-
-    <div class="list-loading" *ngIf="empty">
+    <div class="loading" *ngIf="loading">
       <mat-spinner></mat-spinner>
     </div>
   </div>
 </div>
-
-<app-loading-progress-bar [loadFinished]="loadFinished" [hidden]="!loading || !scrolled" class="virtual-scroll-loading"></app-loading-progress-bar>
-
-<app-content-window side="right" [title]="windowTitle" width="20" *ngIf="showTargetNodes" (showWnd)="onShowWnd($event)">
-  <ng-template #wndContent>
-    <div class="nodes" #nodes>
-      <div class="node icon-cell" *ngFor="let node of targetNodes">
-        <i class="material-icons cell-icon">desktop_windows</i>
-        <div class="cell-text">{{node}}</div>
-      </div>
-    </div>
-  </ng-template>
-</app-content-window>
+<app-scroll-to-top [scrolled]="scrolled" [targetEle]="content"></app-scroll-to-top>
+<!-- <app-loading-progress-bar [loadFinished]="loadFinished"></app-loading-progress-bar> -->
